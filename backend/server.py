@@ -2497,31 +2497,97 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
     return await db.members.find_one(query, {"_id": 0})
 
 
-def _duplicate_reason(found: Dict[str, Any], record: Dict[str, Any]) -> str:
+# ─── البحث عن جميع التكرارات في كل اللجان ──────────────
+async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    البحث عن جميع التكرارات لنفس العضو في كل اللجان النقابية والمحافظات.
+    يبحث باستخدام رقم العضوية أو الرقم القومي في كل اللجان.
+    """
+    department_id = record.get("department_id") or ""
+    membership_number = (record.get("membership_number") or "").strip()
+    national_id = (record.get("national_id") or "").strip()
+
+    or_clauses: List[Dict[str, Any]] = []
+
+    # البحث في كل اللجان (بدون تحديد governorate و union_committee)
+    if membership_number:
+        or_clauses.append({
+            "department_id": department_id,
+            "membership_number": membership_number
+        })
+
+    if national_id:
+        or_clauses.append({
+            "department_id": department_id,
+            "national_id": national_id
+        })
+
+    if not or_clauses:
+        return []
+
+    query: Dict[str, Any] = {"$or": or_clauses}
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+    
+    # البحث عن جميع التكرارات
+    all_duplicates = await db.members.find(query, {"_id": 0}).to_list(100)
+    return all_duplicates
+
+
+def _duplicate_reason(found: Dict[str, Any], record: Dict[str, Any], all_duplicates: List[Dict[str, Any]] = None) -> str:
     """Short Arabic title for the duplicate dialog shown to the user."""
     mn = (record.get("membership_number") or "").strip()
     nid = (record.get("national_id") or "").strip()
     uc = (record.get("union_committee") or "").strip()
     gov = (record.get("governorate") or "").strip()
-    if mn and found.get("membership_number") == mn:
-        return f"رقم العضوية {mn} مستخدم بالفعل في لجنة \"{uc}\" بمحافظة \"{gov}\"."
-    if nid and found.get("national_id") == nid:
-        return f"الرقم القومي {nid} مستخدم بالفعل في لجنة \"{uc}\" بمحافظة \"{gov}\"."
+    
+    # عدد اللجان المكررة
+    num_duplicates = len(all_duplicates) if all_duplicates else 1
+    
+    if num_duplicates > 1:
+        if mn and found.get("membership_number") == mn:
+            return f"رقم العضوية {mn} مستخدم بالفعل في {num_duplicates} لجنة نقابية مختلفة."
+        if nid and found.get("national_id") == nid:
+            return f"الرقم القومي {nid} مستخدم بالفعل في {num_duplicates} لجنة نقابية مختلفة."
+    else:
+        if mn and found.get("membership_number") == mn:
+            return f"رقم العضوية {mn} مستخدم بالفعل في لجنة \"{uc}\" بمحافظة \"{gov}\"."
+        if nid and found.get("national_id") == nid:
+            return f"الرقم القومي {nid} مستخدم بالفعل في لجنة \"{uc}\" بمحافظة \"{gov}\"."
+    
     return "يوجد عضو مسجّل بنفس البيانات في نفس اللجنة والمحافظة."
 
 
-def _raise_duplicate(found: Dict[str, Any], record: Dict[str, Any]) -> None:
+def _raise_duplicate(found: Dict[str, Any], record: Dict[str, Any], all_duplicates: List[Dict[str, Any]] = None) -> None:
     """Raise the standard 409 HTTPException carrying the existing member doc.
 
     The frontend uses ``existing_member`` to render the popup with all the
     existing member's fields + a close button.
     """
+    
+    # إعداد قائمة اللجان المكررة
+    committees_info = []
+    if all_duplicates:
+        for dup in all_duplicates:
+            committees_info.append({
+                "governorate": dup.get("governorate", ""),
+                "union_committee": dup.get("union_committee", ""),
+                "name": dup.get("name", ""),
+                "membership_number": dup.get("membership_number", ""),
+                "national_id": dup.get("national_id", ""),
+                "status": dup.get("status", ""),
+                "id": dup.get("id", "")
+            })
+    
     raise HTTPException(
         status_code=409,
         detail={
             "code": "duplicate_member",
-            "message": _duplicate_reason(found, record),
+            "message": _duplicate_reason(found, record, all_duplicates),
             "existing_member": found,
+            "all_duplicates": all_duplicates if all_duplicates else [found],
+            "committees_info": committees_info,
+            "duplicate_count": len(all_duplicates) if all_duplicates else 1
         },
     )
 
@@ -2548,7 +2614,9 @@ async def create_member(input: MemberIn, user: Dict[str, Any] = Depends(require_
         document_url = f"/api/documents/{document['id']}/download"
     duplicate = await _find_member_duplicate(normalized_input)
     if duplicate:
-        _raise_duplicate(duplicate, normalized_input)
+        # البحث عن جميع التكرارات في كل اللجان
+        all_duplicates = await _find_all_member_duplicates(normalized_input)
+        _raise_duplicate(duplicate, normalized_input, all_duplicates)
     member = Member(
         **normalized_input,
         document_file_name=document_file_name,
@@ -2573,7 +2641,9 @@ async def update_member(member_id: str, input: MemberIn, user: Dict[str, Any] = 
     # Duplicate-check (exclude self) — same unified rule as create.
     duplicate = await _find_member_duplicate(normalized, exclude_id=member_id)
     if duplicate:
-        _raise_duplicate(duplicate, normalized)
+        # البحث عن جميع التكرارات في كل اللجان
+        all_duplicates = await _find_all_member_duplicates(normalized, exclude_id=member_id)
+        _raise_duplicate(duplicate, normalized, all_duplicates)
     document_file_name = existing.get("document_file_name", "")
     document_original_name = existing.get("document_original_name", "")
     document_url = existing.get("document_url", "")

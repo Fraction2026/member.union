@@ -303,7 +303,13 @@ export default function MembershipPage() {
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail;
       if (status === 409 && detail && typeof detail === "object" && detail.code === "duplicate_member") {
-        setDuplicateInfo({ message: detail.message || "", member: detail.existing_member || {} });
+        setDuplicateInfo({ 
+          message: detail.message || "", 
+          member: detail.existing_member || {},
+          all_duplicates: detail.all_duplicates || [],
+          committees_info: detail.committees_info || [],
+          duplicate_count: detail.duplicate_count || 1
+        });
         toast.dismiss(tId);
         setDialogStatus("");
       } else {
@@ -781,6 +787,9 @@ export default function MembershipPage() {
         open={!!duplicateInfo}
         message={duplicateInfo?.message}
         member={duplicateInfo?.member}
+        allDuplicates={duplicateInfo?.all_duplicates || []}
+        committeeInfo={duplicateInfo?.committees_info || []}
+        duplicateCount={duplicateInfo?.duplicate_count || 1}
         onClose={() => setDuplicateInfo(null)}
       />
     </AppShell>
