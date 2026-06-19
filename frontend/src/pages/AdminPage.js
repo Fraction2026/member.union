@@ -72,6 +72,28 @@ export default function AdminPage() {
     }
   };
 
+  const deleteDepartment = async (departmentId, departmentName) => {
+    if (!window.confirm(`هل أنت متأكد من حذف الإدارة "${departmentName}"؟\n\nتحذير: لن تتمكن من حذف الإدارة إذا كان بها أعضاء أو اشتراكات أو مساعدات مسجلة.`)) {
+      return;
+    }
+    
+    setError("");
+    setStatus("");
+    const tId = toast.loading("جاري الحذف...");
+    
+    try {
+      await api.delete(`/departments/${departmentId}`);
+      toast.dismiss(tId);
+      toast.success("تم حذف الإدارة بنجاح");
+      loadData();
+    } catch (err) {
+      toast.dismiss(tId);
+      const errorMsg = getErrorMessage(err);
+      setError(errorMsg);
+      toast.error(errorMsg);
+    }
+  };
+
   const updateRetirementRow = (index, key, value) => {
     setRetirementSchedule((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)));
   };
@@ -359,8 +381,21 @@ export default function AdminPage() {
               {departments.map((department) => (
                 <div key={department.id} className="rounded-lg border border-slate-200 p-4" data-testid={`admin-department-row-${department.id}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <strong className="text-slate-950" data-testid={`admin-department-name-${department.id}`}>{department.name}</strong>
-                    <Badge variant="outline" data-testid={`admin-department-status-${department.id}`}>{department.active ? "فعال" : "متوقف"}</Badge>
+                    <div className="flex items-center gap-3">
+                      <strong className="text-slate-950" data-testid={`admin-department-name-${department.id}`}>{department.name}</strong>
+                      <Badge variant="outline" data-testid={`admin-department-status-${department.id}`}>{department.active ? "فعال" : "متوقف"}</Badge>
+                    </div>
+                    {isSuperAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteDepartment(department.id, department.name)}
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        data-testid={`admin-department-delete-${department.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   <p className="mt-2 text-sm text-slate-500" data-testid={`admin-department-description-${department.id}`}>{department.description}</p>
                 </div>

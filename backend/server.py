@@ -2422,6 +2422,44 @@ async def update_department(department_id: str, input: DepartmentIn, user: Dict[
     return result
 
 
+@api_router.delete("/departments/{department_id}")
+async def delete_department(department_id: str, user: Dict[str, Any] = Depends(require_super_admin)):
+    """
+    حذف إدارة (super_admin فقط).
+    يتحقق أولاً من عدم وجود أعضاء في هذه الإدارة.
+    """
+    # التحقق من وجود أعضاء في هذه الإدارة
+    members_count = await db.members.count_documents({"department_id": department_id})
+    if members_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"لا يمكن حذف الإدارة. يوجد {members_count} عضو مسجل في هذه الإدارة. يجب حذف أو نقل الأعضاء أولاً."
+        )
+    
+    # التحقق من وجود اشتراكات
+    subscriptions_count = await db.subscriptions.count_documents({"department_id": department_id})
+    if subscriptions_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"لا يمكن حذف الإدارة. يوجد {subscriptions_count} اشتراك مسجل. يجب حذفها أولاً."
+        )
+    
+    # التحقق من وجود مساعدات
+    aids_count = await db.aids.count_documents({"department_id": department_id})
+    if aids_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"لا يمكن حذف الإدارة. يوجد {aids_count} مساعدة مسجلة. يجب حذفها أولاً."
+        )
+    
+    # حذف الإدارة
+    result = await db.departments.delete_one({"id": department_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="الإدارة غير موجودة")
+    
+    return {"deleted": True, "message": "تم حذف الإدارة بنجاح"}
+
+
 @api_router.get("/admin/retirement-schedule", response_model=List[RetirementSchedule])
 async def get_retirement_schedule(user: Dict[str, Any] = Depends(require_admin)):
     return await get_retirement_schedule_docs()
