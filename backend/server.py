@@ -4540,23 +4540,9 @@ async def list_subscriptions(
     # Get total count
     total = await db.subscriptions.count_documents(query)
     
-    # Fetch all items for sorting (since we need custom sort logic)
-    all_items = await db.subscriptions.find(query, {"_id": 0}).to_list(20000)
-    
-    # Sort by permit_number sequentially (numeric-aware).
-    def _permit_sort_key(it: Dict[str, Any]):
-        permit = (it.get("permit_number") or "").strip()
-        if not permit:
-            return (2, "", 0)
-        m = re.match(r"^\D*(\d+)", permit)
-        if m:
-            return (0, "", int(m.group(1)))
-        return (1, permit, 0)
-    all_items.sort(key=_permit_sort_key)
-    
-    # Apply pagination
+    # Fetch items sorted by creation date (newest first) with pagination
     skip = (page - 1) * page_size
-    items = all_items[skip:skip + page_size]
+    items = await db.subscriptions.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(page_size).to_list(page_size)
     
     return {
         "data": items,
