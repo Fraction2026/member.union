@@ -2543,21 +2543,27 @@ async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Option
     """
     البحث عن جميع التكرارات لنفس العضو في كل اللجان النقابية والمحافظات.
     يبحث باستخدام:
-    1. رقم العضوية في كل اللجان
+    1. رقم العضوية المكرر في نفس اللجنة فقط
     2. الكشف الذكي (الاسم + الرقم القومي + تاريخ الميلاد) في كل الأماكن
     """
     membership_number = (record.get("membership_number") or "").strip()
+    union_committee = (record.get("union_committee") or "").strip()
+    department_id = record.get("department_id") or ""
     national_id = (record.get("national_id") or "").strip()
     name = (record.get("name") or "").strip()
     birth_date = record.get("birth_date")
 
     or_clauses: List[Dict[str, Any]] = []
 
-    # البحث برقم العضوية في كل اللجان
-    if membership_number:
-        or_clauses.append({"membership_number": membership_number})
+    # البحث برقم العضوية في نفس اللجنة فقط
+    if membership_number and union_committee and department_id:
+        or_clauses.append({
+            "membership_number": membership_number,
+            "union_committee": union_committee,
+            "department_id": department_id
+        })
 
-    # البحث الذكي في كل الأماكن
+    # البحث الذكي في كل الأماكن (بدون قيود على اللجنة أو المحافظة)
     if name and national_id and birth_date:
         or_clauses.append({
             "name": name,
