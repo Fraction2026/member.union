@@ -1,5 +1,13 @@
 // craco.config.js
 const path = require("path");
+// Load .env.production FIRST in production builds so it wins over .env.
+// (dotenv never overrides already-set keys — order matters.) This guarantees
+// production bundles use the RELATIVE API path baked into .env.production
+// (REACT_APP_BACKEND_URL=""), regardless of what .env contains for the
+// cloud preview dev server.
+if (process.env.NODE_ENV === "production") {
+  require("dotenv").config({ path: path.resolve(__dirname, ".env.production") });
+}
 require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)
