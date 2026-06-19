@@ -2308,6 +2308,25 @@ async def get_programmer_signature(user: Dict[str, Any] = Depends(require_super_
 
 
 
+@api_router.get("/documentation/download")
+async def download_technical_documentation():
+    """
+    تحميل التقرير التقني الشامل
+    يمكن لأي مستخدم تحميله
+    """
+    doc_path = ROOT_DIR.parent / "memory" / "TECHNICAL_DOCUMENTATION.md"
+    
+    if not doc_path.exists():
+        raise HTTPException(status_code=404, detail="التقرير التقني غير موجود")
+    
+    return FileResponse(
+        str(doc_path),
+        media_type="text/markdown",
+        filename="TECHNICAL_DOCUMENTATION.md"
+    )
+
+
+
 
 @api_router.get("/installer/install.ps1", response_class=HTMLResponse)
 async def installer_install_ps1():
