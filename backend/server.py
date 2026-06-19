@@ -2498,13 +2498,10 @@ async def upload_document(file: UploadFile = File(...), user: Dict[str, Any] = D
 
 # ─── Member duplicate-detection rule (single source of truth) ──────────────
 #
-# A new (or edited) member is rejected as a duplicate when EITHER the
-# membership_number OR the national_id is already used by another member in
-# the SAME (department_id + governorate + union_committee) combination.
+# تم تعديل القاعدة:
+# - رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة النقابية (بغض النظر عن المحافظة)
+# - الرقم القومي: يُعتبر مكرر في نفس (الإدارة + المحافظة + اللجنة)
 #
-# In other words: the same value is allowed in a DIFFERENT committee or a
-# DIFFERENT governorate; it is blocked only when both committee and
-# governorate match.
 async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     department_id = record.get("department_id") or ""
     governorate = (record.get("governorate") or "").strip()
@@ -2514,17 +2511,22 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
 
     or_clauses: List[Dict[str, Any]] = []
 
-    base = {
-        "department_id": department_id,
-        "governorate": governorate,
-        "union_committee": union_committee,
-    }
-
+    # رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة (بدون شرط المحافظة)
     if membership_number:
-        or_clauses.append({**base, "membership_number": membership_number})
+        or_clauses.append({
+            "department_id": department_id,
+            "union_committee": union_committee,
+            "membership_number": membership_number
+        })
 
+    # الرقم القومي: يُعتبر مكرر في نفس (الإدارة + المحافظة + اللجنة)
     if national_id:
-        or_clauses.append({**base, "national_id": national_id})
+        or_clauses.append({
+            "department_id": department_id,
+            "governorate": governorate,
+            "union_committee": union_committee,
+            "national_id": national_id
+        })
 
     if not or_clauses:
         return None
