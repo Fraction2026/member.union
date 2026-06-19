@@ -749,34 +749,49 @@ export default function MembershipPage() {
                       {STATUS_OPTIONS.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}
                     </SelectContent>
                   </Select>
+                ) : key === "governorate" ? (
+                  <select
+                    id={`member-${key}`}
+                    value={memberForm.governorate || ""}
+                    onChange={(e) => setMemberForm({ ...memberForm, governorate: e.target.value, union_committee: "" })}
+                    className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                    data-testid={`member-input-${key}`}
+                  >
+                    <option value="">اختر المحافظة...</option>
+                    {classifications.governorates.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                ) : key === "union_committee" ? (
+                  <select
+                    id={`member-${key}`}
+                    value={memberForm.union_committee || ""}
+                    onChange={(e) => setMemberForm({ ...memberForm, union_committee: e.target.value })}
+                    className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                    disabled={!memberForm.governorate}
+                    data-testid={`member-input-${key}`}
+                  >
+                    <option value="">{memberForm.governorate ? "اختر اللجنة النقابية..." : "اختر المحافظة أولاً"}</option>
+                    {(memberForm.governorate
+                      ? (classifications.committees_by_governorate || {})[memberForm.governorate] || []
+                      : classifications.union_committees
+                    ).map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
                 ) : key.includes("address") ? (
                   <Textarea id={`member-${key}`} value={memberForm[key] || ""} onChange={(e) => setMemberForm({ ...memberForm, [key]: e.target.value })} rows={2} data-testid={`member-input-${key}`} />
                 ) : (
                   <Input 
                     id={`member-${key}`} 
                     type={dateFields.includes(key) ? "date" : "text"} 
-                    list={key === "governorate" ? "governorate-options" : key === "union_committee" ? "union-committee-options" : undefined} 
                     value={memberForm[key] || ""} 
-                    onChange={(e) => {
-                      // عند تغيير المحافظة، امسح اللجنة المختارة
-                      if (key === "governorate") {
-                        setMemberForm({ ...memberForm, [key]: e.target.value, union_committee: "" });
-                      } else {
-                        setMemberForm({ ...memberForm, [key]: e.target.value });
-                      }
-                    }} 
+                    onChange={(e) => setMemberForm({ ...memberForm, [key]: e.target.value })} 
                     data-testid={`member-input-${key}`} 
                   />
                 )}
               </div>
             ))}
-            <datalist id="governorate-options">{classifications.governorates.map((item) => <option key={item} value={item} />)}</datalist>
-            <datalist id="union-committee-options">
-              {(memberForm.governorate
-                ? (classifications.committees_by_governorate || {})[memberForm.governorate] || []
-                : classifications.union_committees
-              ).map((item) => <option key={item} value={item} />)}
-            </datalist>
             {(dialogStatus || error) && (
               <div className={`md:col-span-2 rounded-lg border p-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`} data-testid="add-dialog-message">{error || dialogStatus}</div>
             )}
