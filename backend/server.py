@@ -2050,393 +2050,6 @@ _BACKUP_COLLECTIONS = [
     "dues_settlements", "financial_letters", "aid_disbursed",
     "user_settings", "scan_jobs", "audit_log",
 ]
-
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# DYNAMIC PORTAL BUILDER SYSTEM
-# ═══════════════════════════════════════════════════════════════════════════
-
-# ─── Models for Dynamic Portals ───
-
-class PortalIcon(BaseModel):
-    """Icon configuration for portal"""
-    type: str = "lucide"  # lucide, emoji, custom
-    name: str = "Box"  # Lucide icon name or emoji
-    color: str = "#3b82f6"  # Hex color
-
-class PortalField(BaseModel):
-    """Field definition for forms"""
-    id: str
-    name: str  # Display name
-    type: str  # text, number, date, select, textarea, etc
-    required: bool = False
-    placeholder: str = ""
-    default_value: Any = None
-    options: List[str] = []  # For select/radio
-    validation: Dict[str, Any] = {}  # Validation rules
-    formula: str = ""  # For calculated fields
-    order: int = 0
-
-class PortalForm(BaseModel):
-    """Form definition"""
-    id: str
-    name: str
-    collection_name: str  # MongoDB collection to store data
-    fields: List[PortalField]
-    submit_button_text: str = "حفظ"
-    success_message: str = "تم الحفظ بنجاح"
-
-class PortalReport(BaseModel):
-    """Report definition"""
-    id: str
-    name: str
-    collection_name: str
-    fields_to_show: List[str]  # Fields to display in table
-    filters: Dict[str, Any] = {}  # Default filters
-    sort_by: str = "created_at"
-    sort_order: str = "desc"  # asc or desc
-    export_enabled: bool = True
-    print_enabled: bool = True
-
-class PortalPage(BaseModel):
-    """Page within a portal"""
-    id: str
-    name: str
-    path: str  # URL path
-    type: str  # form, report, custom, dashboard
-    form_config: Optional[PortalForm] = None
-    report_config: Optional[PortalReport] = None
-    custom_content: str = ""  # HTML/Markdown content
-    icon: PortalIcon = PortalIcon(name="FileText")
-    order: int = 0
-
-class DynamicPortal(BaseModel):
-    """Complete portal configuration"""
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    description: str = ""
-    icon: PortalIcon = PortalIcon(name="Box")
-    permission_key: str  # e.g., "dynamic.inventory"
-    is_active: bool = True
-    pages: List[PortalPage] = []
-    created_at: str = Field(default_factory=now_iso)
-    updated_at: str = Field(default_factory=now_iso)
-    created_by: str = ""
-
-class DynamicPortalCreate(BaseModel):
-    """Create portal request"""
-    name: str
-    description: str = ""
-    icon: PortalIcon = PortalIcon(name="Box")
-    permission_key: str
-
-class DynamicPortalUpdate(BaseModel):
-    """Update portal request"""
-    name: Optional[str] = None
-    description: Optional[str] = None
-    icon: Optional[PortalIcon] = None
-    is_active: Optional[bool] = None
-
-
-# ─── Portal CRUD APIs ───
-
-@api_router.get("/portals/dynamic", response_model=List[DynamicPortal])
-async def get_dynamic_portals(
-    user: Dict[str, Any] = Depends(require_user)
-):
-    """Get all dynamic portals (filtered by user permissions)"""
-    portals = await db.dynamic_portals.find({"is_active": True}, {"_id": 0}).to_list(100)
-    
-    # Filter by user permissions
-    if user["role"] != "super_admin":
-        user_portals = user.get("allowed_portals", [])
-        portals = [p for p in portals if p["permission_key"] in user_portals]
-    
-    return portals
-
-@api_router.get("/portals/dynamic/all", response_model=List[DynamicPortal])
-async def get_all_dynamic_portals_admin(
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Get ALL dynamic portals (including inactive) - Super Admin only"""
-    portals = await db.dynamic_portals.find({}, {"_id": 0}).to_list(100)
-    return portals
-
-@api_router.post("/portals/dynamic", response_model=DynamicPortal)
-async def create_dynamic_portal(
-    portal: DynamicPortalCreate,
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Create a new dynamic portal - Super Admin only"""
-    
-    # Check if permission key already exists
-    existing = await db.dynamic_portals.find_one({"permission_key": portal.permission_key})
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"بوابة بنفس مفتاح الصلاحية '{portal.permission_key}' موجودة بالفعل"
-        )
-    
-    new_portal = DynamicPortal(
-        **portal.model_dump(),
-        created_by=user["id"]
-    )
-    
-    await db.dynamic_portals.insert_one(new_portal.model_dump())
-    
-    return new_portal
-
-@api_router.put("/portals/dynamic/{portal_id}", response_model=DynamicPortal)
-async def update_dynamic_portal(
-    portal_id: str,
-    updates: DynamicPortalUpdate,
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Update a dynamic portal - Super Admin only"""
-    
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
-    update_data["updated_at"] = now_iso()
-    
-    await db.dynamic_portals.update_one(
-        {"id": portal_id},
-        {"$set": update_data}
-    )
-    
-    updated_portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    return updated_portal
-
-@api_router.delete("/portals/dynamic/{portal_id}")
-async def delete_dynamic_portal(
-    portal_id: str,
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Delete a dynamic portal - Super Admin only"""
-    
-    result = await db.dynamic_portals.delete_one({"id": portal_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    return {"message": "تم حذف البوابة بنجاح", "id": portal_id}
-
-
-# ─── Portal Pages CRUD ───
-
-@api_router.post("/portals/dynamic/{portal_id}/pages", response_model=DynamicPortal)
-async def add_portal_page(
-    portal_id: str,
-    page: PortalPage,
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Add a page to a portal"""
-    
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    # Add page
-    pages = portal.get("pages", [])
-    pages.append(page.model_dump())
-    
-    await db.dynamic_portals.update_one(
-        {"id": portal_id},
-        {
-            "$set": {
-                "pages": pages,
-                "updated_at": now_iso()
-            }
-        }
-    )
-    
-    updated_portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    return updated_portal
-
-@api_router.put("/portals/dynamic/{portal_id}/pages/{page_id}", response_model=DynamicPortal)
-async def update_portal_page(
-    portal_id: str,
-    page_id: str,
-    page_update: PortalPage,
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Update a portal page"""
-    
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    pages = portal.get("pages", [])
-    page_found = False
-    
-    for i, p in enumerate(pages):
-        if p["id"] == page_id:
-            pages[i] = page_update.model_dump()
-            page_found = True
-            break
-    
-    if not page_found:
-        raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
-    
-    await db.dynamic_portals.update_one(
-        {"id": portal_id},
-        {
-            "$set": {
-                "pages": pages,
-                "updated_at": now_iso()
-            }
-        }
-    )
-    
-    updated_portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    return updated_portal
-
-@api_router.delete("/portals/dynamic/{portal_id}/pages/{page_id}")
-async def delete_portal_page(
-    portal_id: str,
-    page_id: str,
-    user: Dict[str, Any] = Depends(require_super_admin)
-):
-    """Delete a portal page"""
-    
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    pages = portal.get("pages", [])
-    pages = [p for p in pages if p["id"] != page_id]
-    
-    await db.dynamic_portals.update_one(
-        {"id": portal_id},
-        {
-            "$set": {
-                "pages": pages,
-                "updated_at": now_iso()
-            }
-        }
-    )
-    
-    return {"message": "تم حذف الصفحة بنجاح", "page_id": page_id}
-
-
-# ─── Dynamic Data APIs ───
-
-@api_router.post("/portals/dynamic/{portal_id}/data/{collection_name}")
-async def create_dynamic_data(
-    portal_id: str,
-    collection_name: str,
-    data: Dict[str, Any] = Body(...),
-    user: Dict[str, Any] = Depends(require_user)
-):
-    """Create data in a dynamic collection"""
-    
-    # Verify portal exists and user has permission
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
-        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
-    
-    # Add metadata
-    record = {
-        "id": str(uuid.uuid4()),
-        **data,
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-        "created_by": user["id"]
-    }
-    
-    await db[collection_name].insert_one(record)
-    
-    # Remove MongoDB _id
-    record.pop("_id", None)
-    
-    return record
-
-@api_router.get("/portals/dynamic/{portal_id}/data/{collection_name}")
-async def get_dynamic_data(
-    portal_id: str,
-    collection_name: str,
-    user: Dict[str, Any] = Depends(require_user)
-):
-    """Get data from a dynamic collection"""
-    
-    # Verify portal exists and user has permission
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
-        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
-    
-    data = await db[collection_name].find({}, {"_id": 0}).to_list(1000)
-    
-    return data
-
-@api_router.put("/portals/dynamic/{portal_id}/data/{collection_name}/{record_id}")
-async def update_dynamic_data(
-    portal_id: str,
-    collection_name: str,
-    record_id: str,
-    data: Dict[str, Any] = Body(...),
-    user: Dict[str, Any] = Depends(require_user)
-):
-    """Update data in a dynamic collection"""
-    
-    # Verify portal and permissions
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
-        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
-    
-    # Update record
-    data["updated_at"] = now_iso()
-    
-    result = await db[collection_name].update_one(
-        {"id": record_id},
-        {"$set": data}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="السجل غير موجود")
-    
-    updated = await db[collection_name].find_one({"id": record_id}, {"_id": 0})
-    return updated
-
-@api_router.delete("/portals/dynamic/{portal_id}/data/{collection_name}/{record_id}")
-async def delete_dynamic_data(
-    portal_id: str,
-    collection_name: str,
-    record_id: str,
-    user: Dict[str, Any] = Depends(require_user)
-):
-    """Delete data from a dynamic collection"""
-    
-    # Verify portal and permissions
-    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
-    if not portal:
-        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
-    
-    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
-        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
-    
-    result = await db[collection_name].delete_one({"id": record_id})
-    
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="السجل غير موجود")
-    
-    return {"message": "تم الحذف بنجاح", "id": record_id}
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# END DYNAMIC PORTAL BUILDER SYSTEM
-# ═══════════════════════════════════════════════════════════════════════════
-
 _PASSWORD_FIELDS = {"password_hash", "salt", "password"}
 
 
@@ -2695,25 +2308,6 @@ async def get_programmer_signature(user: Dict[str, Any] = Depends(require_super_
 
 
 
-@api_router.get("/documentation/download")
-async def download_technical_documentation():
-    """
-    تحميل التقرير التقني الشامل
-    يمكن لأي مستخدم تحميله
-    """
-    doc_path = ROOT_DIR.parent / "memory" / "TECHNICAL_DOCUMENTATION.md"
-    
-    if not doc_path.exists():
-        raise HTTPException(status_code=404, detail="التقرير التقني غير موجود")
-    
-    return FileResponse(
-        str(doc_path),
-        media_type="text/markdown",
-        filename="TECHNICAL_DOCUMENTATION.md"
-    )
-
-
-
 
 @api_router.get("/installer/install.ps1", response_class=HTMLResponse)
 async def installer_install_ps1():
@@ -2910,40 +2504,25 @@ async def upload_document(file: UploadFile = File(...), user: Dict[str, Any] = D
 #
 async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    قواعد التكرار:
-    1. غير مسموح بتسجيل نفس العضو (الاسم + الرقم القومي + تاريخ الميلاد) في أي لجنة
-    2. غير مسموح بتكرار رقم العضوية في نفس اللجنة
-    3. مسموح بتكرار رقم العضوية في لجان أو محافظات مختلفة
+    قاعدة التكرار الوحيدة:
+    غير مسموح بتسجيل بيانات عضو في أكثر من لجنة أو أكثر من محافظة
+    يتم الفحص التدريجي: الاسم → الرقم القومي → تاريخ الميلاد
+    إذا تطابقت الثلاثة معاً، يُرفض التسجيل نهائياً
     """
     national_id = (record.get("national_id") or "").strip()
     name = (record.get("name") or "").strip()
     birth_date = record.get("birth_date")
-    membership_number = (record.get("membership_number") or "").strip()
-    union_committee = (record.get("union_committee") or "").strip()
-    department_id = record.get("department_id") or ""
 
-    or_clauses: List[Dict[str, Any]] = []
-
-    # القاعدة 1: منع نفس الشخص في أي لجنة (عالمية)
-    if name and national_id and birth_date:
-        or_clauses.append({
-            "name": name,
-            "national_id": national_id,
-            "birth_date": birth_date
-        })
-
-    # القاعدة 2: منع رقم العضوية المكرر في نفس اللجنة (محلية)
-    if membership_number and union_committee and department_id:
-        or_clauses.append({
-            "membership_number": membership_number,
-            "union_committee": union_committee,
-            "department_id": department_id
-        })
-
-    if not or_clauses:
+    # يجب توفر الثلاثة للفحص
+    if not (name and national_id and birth_date):
         return None
 
-    query: Dict[str, Any] = {"$or": or_clauses}
+    query: Dict[str, Any] = {
+        "name": name,
+        "national_id": national_id,
+        "birth_date": birth_date
+    }
+    
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
     
@@ -2953,39 +2532,24 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
 # ─── البحث عن جميع التكرارات في كل اللجان ──────────────
 async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    البحث عن جميع التكرارات:
-    1. نفس العضو (الاسم + الرقم القومي + تاريخ الميلاد) في أي لجنة
-    2. نفس رقم العضوية في نفس اللجنة
+    البحث عن جميع التكرارات لنفس العضو في كل اللجان والمحافظات.
+    القاعدة: غير مسموح بتسجيل عضو في أكثر من لجنة أو محافظة
+    يتم البحث باستخدام: الاسم + الرقم القومي + تاريخ الميلاد
     """
     national_id = (record.get("national_id") or "").strip()
     name = (record.get("name") or "").strip()
     birth_date = record.get("birth_date")
-    membership_number = (record.get("membership_number") or "").strip()
-    union_committee = (record.get("union_committee") or "").strip()
-    department_id = record.get("department_id") or ""
 
-    or_clauses: List[Dict[str, Any]] = []
-
-    # القاعدة 1: البحث عن نفس الشخص في أي لجنة
-    if name and national_id and birth_date:
-        or_clauses.append({
-            "name": name,
-            "national_id": national_id,
-            "birth_date": birth_date
-        })
-
-    # القاعدة 2: البحث عن رقم العضوية المكرر في نفس اللجنة
-    if membership_number and union_committee and department_id:
-        or_clauses.append({
-            "membership_number": membership_number,
-            "union_committee": union_committee,
-            "department_id": department_id
-        })
-
-    if not or_clauses:
+    # يجب توفر الثلاثة للبحث
+    if not (name and national_id and birth_date):
         return []
 
-    query: Dict[str, Any] = {"$or": or_clauses}
+    query: Dict[str, Any] = {
+        "name": name,
+        "national_id": national_id,
+        "birth_date": birth_date
+    }
+    
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
     
@@ -2997,53 +2561,32 @@ async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Option
 def _duplicate_reason(found: Dict[str, Any], record: Dict[str, Any], all_duplicates: List[Dict[str, Any]] = None) -> str:
     """
     رسالة التكرار التي تظهر للمستخدم.
-    توضح نوع التكرار: نفس الشخص أو نفس رقم العضوية في نفس اللجنة.
+    توضح أن العضو مسجل بالفعل وتذكر اسم اللجنة/اللجان.
     """
     name = (record.get("name") or "").strip()
     nid = (record.get("national_id") or "").strip()
-    membership_number = (record.get("membership_number") or "").strip()
-    union_committee = (record.get("union_committee") or "").strip()
     
-    # التحقق من نوع التكرار
-    found_name = found.get("name", "")
-    found_nid = found.get("national_id", "")
-    found_birthdate = found.get("birth_date", "")
-    found_membership = found.get("membership_number", "")
-    found_committee = found.get("union_committee", "")
+    # عدد اللجان المكررة
+    num_duplicates = len(all_duplicates) if all_duplicates else 1
     
-    record_birthdate = record.get("birth_date", "")
-    
-    # حالة 1: نفس الشخص (الاسم + الرقم القومي + تاريخ الميلاد)
-    if (found_name == name and found_nid == nid and found_birthdate == record_birthdate):
-        num_duplicates = len(all_duplicates) if all_duplicates else 1
+    if num_duplicates > 1:
+        # العضو مسجل في أكثر من لجنة
+        committees_list = []
+        for dup in (all_duplicates or [found])[:3]:  # أول 3 لجان
+            uc = dup.get("union_committee", "غير محدد")
+            gov = dup.get("governorate", "غير محدد")
+            committees_list.append(f"\"{uc}\" - {gov}")
         
-        if num_duplicates > 1:
-            # العضو مسجل في أكثر من لجنة
-            committees_list = []
-            for dup in (all_duplicates or [found])[:3]:  # أول 3 لجان
-                uc = dup.get("union_committee", "غير محدد")
-                gov = dup.get("governorate", "غير محدد")
-                committees_list.append(f"\"{uc}\" - {gov}")
-            
-            committees_text = "، ".join(committees_list)
-            if num_duplicates > 3:
-                committees_text += f" و{num_duplicates - 3} لجنة أخرى"
-            
-            return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في {num_duplicates} لجنة: {committees_text}"
-        else:
-            # العضو مسجل في لجنة واحدة
-            uc = found.get("union_committee", "غير محدد")
-            gov = found.get("governorate", "غير محدد")
-            return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في لجنة \"{uc}\" - محافظة {gov}"
-    
-    # حالة 2: رقم العضوية مكرر في نفس اللجنة
-    elif (found_membership == membership_number and found_committee == union_committee):
+        committees_text = "، ".join(committees_list)
+        if num_duplicates > 3:
+            committees_text += f" و{num_duplicates - 3} لجنة أخرى"
+        
+        return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في {num_duplicates} لجنة: {committees_text}"
+    else:
+        # العضو مسجل في لجنة واحدة
         uc = found.get("union_committee", "غير محدد")
         gov = found.get("governorate", "غير محدد")
-        return f"رقم العضوية \"{membership_number}\" مستخدم بالفعل في نفس اللجنة \"{uc}\" - محافظة {gov}"
-    
-    # حالة افتراضية
-    return "يوجد تكرار في البيانات"
+        return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في لجنة \"{uc}\" - محافظة {gov}"
 
 
 def _raise_duplicate(found: Dict[str, Any], record: Dict[str, Any], all_duplicates: List[Dict[str, Any]] = None) -> None:

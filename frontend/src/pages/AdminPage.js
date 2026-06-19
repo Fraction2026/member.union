@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, CalendarClock, Clock, ListChecks, Loader2, Plus, Save, Trash2, Users, Wand2, Box } from "lucide-react";
+import { Building2, CalendarClock, Clock, ListChecks, Loader2, Plus, Save, Trash2, Users, Wand2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import AppShell from "../components/AppShell";
@@ -7,7 +7,6 @@ import BackupRestoreCard from "../components/BackupRestoreCard";
 import MemberDedupDialog from "../components/MemberDedupDialog";
 import MemberMissingDataDialog from "../components/MemberMissingDataDialog";
 import TaxonomyAdmin from "../components/TaxonomyAdmin";
-import PortalBuilder from "../components/PortalBuilder";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -267,27 +266,6 @@ export default function AdminPage() {
           </div>
           <Link to="/admin/users"><Button className="bg-[#0f3a73] hover:bg-[#103e7d]" data-testid="admin-open-users-btn"><Users className="h-4 w-4" /> فتح</Button></Link>
         </div>
-
-        {isSuperAdmin && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/40 p-4">
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white"><Box className="h-5 w-5" /></div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-950">منشئ البوابات الديناميكي</h3>
-                <p className="text-xs text-slate-500">إنشاء وإدارة البوابات المخصصة بدون كود</p>
-              </div>
-            </div>
-            <Button 
-              onClick={() => {
-                const section = document.getElementById('portal-builder-section');
-                section?.scrollIntoView({ behavior: 'smooth' });
-              }} 
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Box className="h-4 w-4" /> إدارة البوابات
-            </Button>
-          </div>
-        )}
 
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-purple-200 bg-purple-50/40 p-4" data-testid="admin-dedup-banner">
           <div className="flex items-center gap-3">
@@ -601,13 +579,6 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Portal Builder Section */}
-      {isSuperAdmin && (
-        <div id="portal-builder-section" className="mt-8">
-          <PortalBuilder />
-        </div>
-      )}
 
       <MemberDedupDialog open={memberDedupOpen} onOpenChange={setMemberDedupOpen} departments={departments} />
       <MemberMissingDataDialog open={missingOpen} onOpenChange={setMissingOpen} departments={departments} />
