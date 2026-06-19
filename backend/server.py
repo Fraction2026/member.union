@@ -2504,25 +2504,40 @@ async def upload_document(file: UploadFile = File(...), user: Dict[str, Any] = D
 #
 async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    قاعدة التكرار الوحيدة:
-    غير مسموح بتسجيل بيانات عضو في أكثر من لجنة أو أكثر من محافظة
-    يتم الفحص التدريجي: الاسم → الرقم القومي → تاريخ الميلاد
-    إذا تطابقت الثلاثة معاً، يُرفض التسجيل نهائياً
+    قواعد التكرار:
+    1. غير مسموح بتسجيل نفس العضو (الاسم + الرقم القومي + تاريخ الميلاد) في أي لجنة
+    2. غير مسموح بتكرار رقم العضوية في نفس اللجنة
+    3. مسموح بتكرار رقم العضوية في لجان أو محافظات مختلفة
     """
     national_id = (record.get("national_id") or "").strip()
     name = (record.get("name") or "").strip()
     birth_date = record.get("birth_date")
+    membership_number = (record.get("membership_number") or "").strip()
+    union_committee = (record.get("union_committee") or "").strip()
+    department_id = record.get("department_id") or ""
 
-    # يجب توفر الثلاثة للفحص
-    if not (name and national_id and birth_date):
+    or_clauses: List[Dict[str, Any]] = []
+
+    # القاعدة 1: منع نفس الشخص في أي لجنة (عالمية)
+    if name and national_id and birth_date:
+        or_clauses.append({
+            "name": name,
+            "national_id": national_id,
+            "birth_date": birth_date
+        })
+
+    # القاعدة 2: منع رقم العضوية المكرر في نفس اللجنة (محلية)
+    if membership_number and union_committee and department_id:
+        or_clauses.append({
+            "membership_number": membership_number,
+            "union_committee": union_committee,
+            "department_id": department_id
+        })
+
+    if not or_clauses:
         return None
 
-    query: Dict[str, Any] = {
-        "name": name,
-        "national_id": national_id,
-        "birth_date": birth_date
-    }
-    
+    query: Dict[str, Any] = {"$or": or_clauses}
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
     
@@ -2532,24 +2547,39 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
 # ─── البحث عن جميع التكرارات في كل اللجان ──────────────
 async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    البحث عن جميع التكرارات لنفس العضو في كل اللجان والمحافظات.
-    القاعدة: غير مسموح بتسجيل عضو في أكثر من لجنة أو محافظة
-    يتم البحث باستخدام: الاسم + الرقم القومي + تاريخ الميلاد
+    البحث عن جميع التكرارات:
+    1. نفس العضو (الاسم + الرقم القومي + تاريخ الميلاد) في أي لجنة
+    2. نفس رقم العضوية في نفس اللجنة
     """
     national_id = (record.get("national_id") or "").strip()
     name = (record.get("name") or "").strip()
     birth_date = record.get("birth_date")
+    membership_number = (record.get("membership_number") or "").strip()
+    union_committee = (record.get("union_committee") or "").strip()
+    department_id = record.get("department_id") or ""
 
-    # يجب توفر الثلاثة للبحث
-    if not (name and national_id and birth_date):
+    or_clauses: List[Dict[str, Any]] = []
+
+    # القاعدة 1: البحث عن نفس الشخص في أي لجنة
+    if name and national_id and birth_date:
+        or_clauses.append({
+            "name": name,
+            "national_id": national_id,
+            "birth_date": birth_date
+        })
+
+    # القاعدة 2: البحث عن رقم العضوية المكرر في نفس اللجنة
+    if membership_number and union_committee and department_id:
+        or_clauses.append({
+            "membership_number": membership_number,
+            "union_committee": union_committee,
+            "department_id": department_id
+        })
+
+    if not or_clauses:
         return []
 
-    query: Dict[str, Any] = {
-        "name": name,
-        "national_id": national_id,
-        "birth_date": birth_date
-    }
-    
+    query: Dict[str, Any] = {"$or": or_clauses}
     if exclude_id:
         query["id"] = {"$ne": exclude_id}
     
@@ -2561,32 +2591,53 @@ async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Option
 def _duplicate_reason(found: Dict[str, Any], record: Dict[str, Any], all_duplicates: List[Dict[str, Any]] = None) -> str:
     """
     رسالة التكرار التي تظهر للمستخدم.
-    توضح أن العضو مسجل بالفعل وتذكر اسم اللجنة/اللجان.
+    توضح نوع التكرار: نفس الشخص أو نفس رقم العضوية في نفس اللجنة.
     """
     name = (record.get("name") or "").strip()
     nid = (record.get("national_id") or "").strip()
+    membership_number = (record.get("membership_number") or "").strip()
+    union_committee = (record.get("union_committee") or "").strip()
     
-    # عدد اللجان المكررة
-    num_duplicates = len(all_duplicates) if all_duplicates else 1
+    # التحقق من نوع التكرار
+    found_name = found.get("name", "")
+    found_nid = found.get("national_id", "")
+    found_birthdate = found.get("birth_date", "")
+    found_membership = found.get("membership_number", "")
+    found_committee = found.get("union_committee", "")
     
-    if num_duplicates > 1:
-        # العضو مسجل في أكثر من لجنة
-        committees_list = []
-        for dup in (all_duplicates or [found])[:3]:  # أول 3 لجان
-            uc = dup.get("union_committee", "غير محدد")
-            gov = dup.get("governorate", "غير محدد")
-            committees_list.append(f"\"{uc}\" - {gov}")
+    record_birthdate = record.get("birth_date", "")
+    
+    # حالة 1: نفس الشخص (الاسم + الرقم القومي + تاريخ الميلاد)
+    if (found_name == name and found_nid == nid and found_birthdate == record_birthdate):
+        num_duplicates = len(all_duplicates) if all_duplicates else 1
         
-        committees_text = "، ".join(committees_list)
-        if num_duplicates > 3:
-            committees_text += f" و{num_duplicates - 3} لجنة أخرى"
-        
-        return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في {num_duplicates} لجنة: {committees_text}"
-    else:
-        # العضو مسجل في لجنة واحدة
+        if num_duplicates > 1:
+            # العضو مسجل في أكثر من لجنة
+            committees_list = []
+            for dup in (all_duplicates or [found])[:3]:  # أول 3 لجان
+                uc = dup.get("union_committee", "غير محدد")
+                gov = dup.get("governorate", "غير محدد")
+                committees_list.append(f"\"{uc}\" - {gov}")
+            
+            committees_text = "، ".join(committees_list)
+            if num_duplicates > 3:
+                committees_text += f" و{num_duplicates - 3} لجنة أخرى"
+            
+            return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في {num_duplicates} لجنة: {committees_text}"
+        else:
+            # العضو مسجل في لجنة واحدة
+            uc = found.get("union_committee", "غير محدد")
+            gov = found.get("governorate", "غير محدد")
+            return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في لجنة \"{uc}\" - محافظة {gov}"
+    
+    # حالة 2: رقم العضوية مكرر في نفس اللجنة
+    elif (found_membership == membership_number and found_committee == union_committee):
         uc = found.get("union_committee", "غير محدد")
         gov = found.get("governorate", "غير محدد")
-        return f"العضو \"{name}\" (رقم قومي: {nid}) مسجل بالفعل في لجنة \"{uc}\" - محافظة {gov}"
+        return f"رقم العضوية \"{membership_number}\" مستخدم بالفعل في نفس اللجنة \"{uc}\" - محافظة {gov}"
+    
+    # حالة افتراضية
+    return "يوجد تكرار في البيانات"
 
 
 def _raise_duplicate(found: Dict[str, Any], record: Dict[str, Any], all_duplicates: List[Dict[str, Any]] = None) -> None:
