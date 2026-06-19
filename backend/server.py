@@ -2498,20 +2498,21 @@ async def upload_document(file: UploadFile = File(...), user: Dict[str, Any] = D
 
 # ─── Member duplicate-detection rule (single source of truth) ──────────────
 #
-# تم تعديل القاعدة:
-# - رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة النقابية (بغض النظر عن المحافظة)
-# - الرقم القومي: يُعتبر مكرر في نفس (الإدارة + المحافظة + اللجنة)
+# قواعد التكرار:
+# 1. رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة النقابية
+# 2. الكشف الذكي: إذا تطابق (الاسم الرباعي + الرقم القومي + تاريخ الميلاد) = نفس الشخص (مكرر)
 #
 async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     department_id = record.get("department_id") or ""
-    governorate = (record.get("governorate") or "").strip()
     union_committee = (record.get("union_committee") or "").strip()
     membership_number = (record.get("membership_number") or "").strip()
     national_id = (record.get("national_id") or "").strip()
+    name = (record.get("name") or "").strip()
+    birth_date = record.get("birth_date")
 
     or_clauses: List[Dict[str, Any]] = []
 
-    # رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة (بدون شرط المحافظة)
+    # القاعدة 1: رقم العضوية مكرر فقط في نفس اللجنة
     if membership_number:
         or_clauses.append({
             "department_id": department_id,
@@ -2519,13 +2520,14 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
             "membership_number": membership_number
         })
 
-    # الرقم القومي: يُعتبر مكرر في نفس (الإدارة + المحافظة + اللجنة)
-    if national_id:
+    # القاعدة 2: الكشف الذكي - نفس الشخص (الاسم + الرقم القومي + تاريخ الميلاد)
+    # هذا يكشف نفس الشخص حتى لو في لجنة مختلفة أو رقم عضوية مختلف
+    if name and national_id and birth_date:
         or_clauses.append({
             "department_id": department_id,
-            "governorate": governorate,
-            "union_committee": union_committee,
-            "national_id": national_id
+            "name": name,
+            "national_id": national_id,
+            "birth_date": birth_date
         })
 
     if not or_clauses:
