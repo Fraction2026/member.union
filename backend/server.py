@@ -2376,7 +2376,12 @@ async def installer_setup_bat():
 
 
 @api_router.get("/admin/settings")
-
+async def get_settings(user: Dict[str, Any] = Depends(require_admin)):
+    """Get current admin settings like session timeout."""
+    doc = await db.settings.find_one({"id": SETTINGS_DOC_ID}, {"_id": 0})
+    if not doc:
+        return {"session_timeout_hours": 12}
+    return {"session_timeout_hours": doc.get("session_timeout_hours", 12)}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
