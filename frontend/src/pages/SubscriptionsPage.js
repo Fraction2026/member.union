@@ -341,7 +341,7 @@ export default function SubscriptionsPage({ settlementMode = false } = {}) {
               </select>
               <div className="relative w-full max-w-xs">
                 <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث برقم الإذن/المحافظة/اللجنة" className="pe-10" data-testid="subscription-search-input" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث برقم الإذن/المحافظة/اللجنة/تفاصيل الدفع/الملاحظات" className="pe-10" data-testid="subscription-search-input" />
               </div>
               <Button
                 type="button"

@@ -4535,6 +4535,8 @@ async def list_subscriptions(
             {"union_committee": {"$regex": search, "$options": "i"}},
             {"cheque_number": {"$regex": search, "$options": "i"}},
             {"electronic_reference": {"$regex": search, "$options": "i"}},
+            {"payment_details": {"$regex": search, "$options": "i"}},
+            {"notes": {"$regex": search, "$options": "i"}},
         ]
     
     # Get total count
