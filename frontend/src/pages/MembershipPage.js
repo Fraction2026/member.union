@@ -752,12 +752,31 @@ export default function MembershipPage() {
                 ) : key.includes("address") ? (
                   <Textarea id={`member-${key}`} value={memberForm[key] || ""} onChange={(e) => setMemberForm({ ...memberForm, [key]: e.target.value })} rows={2} data-testid={`member-input-${key}`} />
                 ) : (
-                  <Input id={`member-${key}`} type={dateFields.includes(key) ? "date" : "text"} list={key === "governorate" ? "governorate-options" : key === "union_committee" ? "union-committee-options" : undefined} value={memberForm[key] || ""} onChange={(e) => setMemberForm({ ...memberForm, [key]: e.target.value })} data-testid={`member-input-${key}`} />
+                  <Input 
+                    id={`member-${key}`} 
+                    type={dateFields.includes(key) ? "date" : "text"} 
+                    list={key === "governorate" ? "governorate-options" : key === "union_committee" ? "union-committee-options" : undefined} 
+                    value={memberForm[key] || ""} 
+                    onChange={(e) => {
+                      // عند تغيير المحافظة، امسح اللجنة المختارة
+                      if (key === "governorate") {
+                        setMemberForm({ ...memberForm, [key]: e.target.value, union_committee: "" });
+                      } else {
+                        setMemberForm({ ...memberForm, [key]: e.target.value });
+                      }
+                    }} 
+                    data-testid={`member-input-${key}`} 
+                  />
                 )}
               </div>
             ))}
             <datalist id="governorate-options">{classifications.governorates.map((item) => <option key={item} value={item} />)}</datalist>
-            <datalist id="union-committee-options">{classifications.union_committees.map((item) => <option key={item} value={item} />)}</datalist>
+            <datalist id="union-committee-options">
+              {(memberForm.governorate
+                ? (classifications.committees_by_governorate || {})[memberForm.governorate] || []
+                : classifications.union_committees
+              ).map((item) => <option key={item} value={item} />)}
+            </datalist>
             {(dialogStatus || error) && (
               <div className={`md:col-span-2 rounded-lg border p-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`} data-testid="add-dialog-message">{error || dialogStatus}</div>
             )}
