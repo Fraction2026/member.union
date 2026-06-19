@@ -367,7 +367,7 @@ export default function AdminPage() {
             <form onSubmit={saveDepartment} className="grid gap-4" data-testid="department-create-form">
               <div className="grid gap-2">
                 <Label htmlFor="department-name" data-testid="department-name-label">اسم الإدارة</Label>
-                <Input id="department-name" value={departmentForm.name} onChange={(e) => setDepartmentForm({ ...departmentForm, name: e.target.value })} required data-testid="department-name-input" />
+                <Input id="department-name" value={departmentForm.name} onChange={(e) => setDepartmentForm({ ...departmentForm, name: e.target.value })} data-testid="department-name-input" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="department-code" data-testid="department-code-label">كود مختصر</Label>
