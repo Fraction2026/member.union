@@ -16,6 +16,9 @@ import shutil
 import mimetypes
 from collections import defaultdict, Counter
 from difflib import SequenceMatcher
+import json
+import time
+import asyncio
 
 # OCR libs (pypdf, pytesseract, pdf2image, PIL) are now used inside services/ocr.py.
 
@@ -2422,7 +2425,6 @@ async def trigger_local_update(user: Dict[str, Any] = Depends(require_super_admi
         )
     
     # Start update in background
-    import asyncio
     asyncio.create_task(perform_local_update())
     
     return {"message": "Update started", "check_status": "/api/admin/update/status"}
@@ -2505,7 +2507,7 @@ async def perform_local_update():
         _update_status.message = "Notifying connected clients..."
         
         # Update a flag in MongoDB that clients can check
-        await db._system_state.update_one(
+        await db["_system_state"].update_one(
             {"key": "update_available"},
             {"$set": {
                 "key": "update_available",
@@ -2535,7 +2537,7 @@ async def perform_local_update():
 @api_router.get("/admin/update/check")
 async def check_for_updates():
     """Check if update is available (public endpoint)"""
-    update_flag = await db._system_state.find_one(
+    update_flag = await db["_system_state"].find_one(
         {"key": "update_available"},
         {"_id": 0}
     )
@@ -2553,7 +2555,7 @@ async def check_for_updates():
 async def acknowledge_update(user: Dict[str, Any] = Depends(require_user)):
     """Mark update as acknowledged (client reloaded)"""
     # Clear the update flag after client reloads
-    await db._system_state.update_one(
+    await db["_system_state"].update_one(
         {"key": "update_available"},
         {"$set": {"value": False}}
     )

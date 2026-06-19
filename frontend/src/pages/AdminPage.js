@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import AppShell from "../components/AppShell";
 import BackupRestoreCard from "../components/BackupRestoreCard";
+import LocalUpdateManager from "../components/LocalUpdateManager";
 import MemberDedupDialog from "../components/MemberDedupDialog";
 import MemberMissingDataDialog from "../components/MemberMissingDataDialog";
 import TaxonomyAdmin from "../components/TaxonomyAdmin";
@@ -334,6 +335,12 @@ export default function AdminPage() {
             </div>
             <Link to="/manual"><Button className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="admin-open-manual-btn">فتح الكتيب</Button></Link>
           </div>
+        </div>
+      )}
+
+      {isSuperAdmin && (
+        <div className="mb-6">
+          <LocalUpdateManager />
         </div>
       )}
 
