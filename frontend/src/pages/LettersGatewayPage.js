@@ -7,8 +7,6 @@ import GatewayCard from "../components/GatewayCard";
 import { api, getErrorMessage } from "../lib/api";
 
 const subGateways = [
-  { key: "letters_received", label: "خطابات مستلمة", path: "received", icon: Inbox, accent: "blue", description: "" },
-  { key: "letters_sent", label: "خطابات مرسلة", path: "sent", icon: Send, accent: "violet", description: "" },
   { key: "letters_generate", label: "توليد خطابات اللجان", path: "generate", icon: MailPlus, accent: "emerald", description: "" },
 ];
 
@@ -43,7 +41,7 @@ export default function LettersGatewayPage() {
           icon={Mail}
           badge="بوابة فرعية"
           title="الخطابات"
-          subtitle={`خطابات الموقف المالي لأعضاء ${department?.name || "المشروع"} — مستلمة ومرسلة.`}
+          subtitle={`خطابات الموقف المالي لأعضاء ${department?.name || "المشروع"} — توليد خطابات اللجان.`}
           crumbs={[
             { to: "/departments", label: "الإدارات" },
             { to: `/project/${id}`, label: department?.name || "مشروع التكافل الاجتماعي" },

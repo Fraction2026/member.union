@@ -15,8 +15,6 @@ const CATEGORY_META = {
   pension:          { label: "المعاش",         icon: BadgeDollarSign, parent: "financial", parentLabel: "الموقف المالي", isLetter: false },
   resignations:     { label: "استقالات",       icon: FileMinus,       parent: "financial", parentLabel: "الموقف المالي", isLetter: false },
   dropout:          { label: "إسقاط",          icon: UserMinus,       parent: "financial", parentLabel: "الموقف المالي", isLetter: false },
-  letters_received: { label: "خطابات مستلمة", icon: Inbox,           parent: "letters",   parentLabel: "الخطابات",     isLetter: true,  grandParent: "financial", grandParentLabel: "الموقف المالي" },
-  letters_sent:     { label: "خطابات مرسلة",  icon: Send,            parent: "letters",   parentLabel: "الخطابات",     isLetter: true,  grandParent: "financial", grandParentLabel: "الموقف المالي" },
   aid_pending:      { label: "إعانات في انتظار الموافقة", icon: Clock,          parent: "aid", parentLabel: "الإعانات", isLetter: false, grandParent: "financial", grandParentLabel: "الموقف المالي" },
   aid_disbursed:    { label: "إعانات تم صرفها",          icon: CheckCircle2,   parent: "aid", parentLabel: "الإعانات", isLetter: false, grandParent: "financial", grandParentLabel: "الموقف المالي" },
 };
@@ -25,8 +23,6 @@ const PATH_TO_CATEGORY = {
   pension: "pension",
   resignations: "resignations",
   dropout: "dropout",
-  "letters/received": "letters_received",
-  "letters/sent": "letters_sent",
   "aid/pending": "aid_pending",
   "aid/disbursed": "aid_disbursed",
 };
