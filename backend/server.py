@@ -2499,8 +2499,8 @@ async def upload_document(file: UploadFile = File(...), user: Dict[str, Any] = D
 # ─── Member duplicate-detection rule (single source of truth) ──────────────
 #
 # قواعد التكرار:
-# 1. رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة النقابية
-# 2. الكشف الذكي: إذا تطابق (الاسم الرباعي + الرقم القومي + تاريخ الميلاد) = نفس الشخص (مكرر)
+# 1. رقم العضوية: يُعتبر مكرر فقط في نفس اللجنة النقابية (في نفس الإدارة)
+# 2. الكشف الذكي: إذا تطابق (الاسم + الرقم القومي + تاريخ الميلاد) = نفس الشخص (في أي مكان!)
 #
 async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     department_id = record.get("department_id") or ""
@@ -2512,7 +2512,7 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
 
     or_clauses: List[Dict[str, Any]] = []
 
-    # القاعدة 1: رقم العضوية مكرر فقط في نفس اللجنة
+    # القاعدة 1: رقم العضوية مكرر فقط في نفس اللجنة (في نفس الإدارة)
     if membership_number:
         or_clauses.append({
             "department_id": department_id,
@@ -2520,11 +2520,10 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
             "membership_number": membership_number
         })
 
-    # القاعدة 2: الكشف الذكي - نفس الشخص (الاسم + الرقم القومي + تاريخ الميلاد)
-    # هذا يكشف نفس الشخص حتى لو في لجنة مختلفة أو رقم عضوية مختلف
+    # القاعدة 2: الكشف الذكي - نفس الشخص في أي مكان (بدون شرط الإدارة أو اللجنة)
+    # هذا يكشف نفس الشخص حتى لو في إدارة مختلفة أو محافظة مختلفة أو لجنة مختلفة
     if name and national_id and birth_date:
         or_clauses.append({
-            "department_id": department_id,
             "name": name,
             "national_id": national_id,
             "birth_date": birth_date
@@ -2543,25 +2542,27 @@ async def _find_member_duplicate(record: Dict[str, Any], exclude_id: Optional[st
 async def _find_all_member_duplicates(record: Dict[str, Any], exclude_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     البحث عن جميع التكرارات لنفس العضو في كل اللجان النقابية والمحافظات.
-    يبحث باستخدام رقم العضوية أو الرقم القومي في كل اللجان.
+    يبحث باستخدام:
+    1. رقم العضوية في كل اللجان
+    2. الكشف الذكي (الاسم + الرقم القومي + تاريخ الميلاد) في كل الأماكن
     """
-    department_id = record.get("department_id") or ""
     membership_number = (record.get("membership_number") or "").strip()
     national_id = (record.get("national_id") or "").strip()
+    name = (record.get("name") or "").strip()
+    birth_date = record.get("birth_date")
 
     or_clauses: List[Dict[str, Any]] = []
 
-    # البحث في كل اللجان (بدون تحديد governorate و union_committee)
+    # البحث برقم العضوية في كل اللجان
     if membership_number:
-        or_clauses.append({
-            "department_id": department_id,
-            "membership_number": membership_number
-        })
+        or_clauses.append({"membership_number": membership_number})
 
-    if national_id:
+    # البحث الذكي في كل الأماكن
+    if name and national_id and birth_date:
         or_clauses.append({
-            "department_id": department_id,
-            "national_id": national_id
+            "name": name,
+            "national_id": national_id,
+            "birth_date": birth_date
         })
 
     if not or_clauses:
