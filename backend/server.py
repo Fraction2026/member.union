@@ -2050,6 +2050,393 @@ _BACKUP_COLLECTIONS = [
     "dues_settlements", "financial_letters", "aid_disbursed",
     "user_settings", "scan_jobs", "audit_log",
 ]
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DYNAMIC PORTAL BUILDER SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Models for Dynamic Portals ───
+
+class PortalIcon(BaseModel):
+    """Icon configuration for portal"""
+    type: str = "lucide"  # lucide, emoji, custom
+    name: str = "Box"  # Lucide icon name or emoji
+    color: str = "#3b82f6"  # Hex color
+
+class PortalField(BaseModel):
+    """Field definition for forms"""
+    id: str
+    name: str  # Display name
+    type: str  # text, number, date, select, textarea, etc
+    required: bool = False
+    placeholder: str = ""
+    default_value: Any = None
+    options: List[str] = []  # For select/radio
+    validation: Dict[str, Any] = {}  # Validation rules
+    formula: str = ""  # For calculated fields
+    order: int = 0
+
+class PortalForm(BaseModel):
+    """Form definition"""
+    id: str
+    name: str
+    collection_name: str  # MongoDB collection to store data
+    fields: List[PortalField]
+    submit_button_text: str = "حفظ"
+    success_message: str = "تم الحفظ بنجاح"
+
+class PortalReport(BaseModel):
+    """Report definition"""
+    id: str
+    name: str
+    collection_name: str
+    fields_to_show: List[str]  # Fields to display in table
+    filters: Dict[str, Any] = {}  # Default filters
+    sort_by: str = "created_at"
+    sort_order: str = "desc"  # asc or desc
+    export_enabled: bool = True
+    print_enabled: bool = True
+
+class PortalPage(BaseModel):
+    """Page within a portal"""
+    id: str
+    name: str
+    path: str  # URL path
+    type: str  # form, report, custom, dashboard
+    form_config: Optional[PortalForm] = None
+    report_config: Optional[PortalReport] = None
+    custom_content: str = ""  # HTML/Markdown content
+    icon: PortalIcon = PortalIcon(name="FileText")
+    order: int = 0
+
+class DynamicPortal(BaseModel):
+    """Complete portal configuration"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    icon: PortalIcon = PortalIcon(name="Box")
+    permission_key: str  # e.g., "dynamic.inventory"
+    is_active: bool = True
+    pages: List[PortalPage] = []
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+    created_by: str = ""
+
+class DynamicPortalCreate(BaseModel):
+    """Create portal request"""
+    name: str
+    description: str = ""
+    icon: PortalIcon = PortalIcon(name="Box")
+    permission_key: str
+
+class DynamicPortalUpdate(BaseModel):
+    """Update portal request"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    icon: Optional[PortalIcon] = None
+    is_active: Optional[bool] = None
+
+
+# ─── Portal CRUD APIs ───
+
+@api_router.get("/portals/dynamic", response_model=List[DynamicPortal])
+async def get_dynamic_portals(
+    user: Dict[str, Any] = Depends(require_user)
+):
+    """Get all dynamic portals (filtered by user permissions)"""
+    portals = await db.dynamic_portals.find({"is_active": True}, {"_id": 0}).to_list(100)
+    
+    # Filter by user permissions
+    if user["role"] != "super_admin":
+        user_portals = user.get("allowed_portals", [])
+        portals = [p for p in portals if p["permission_key"] in user_portals]
+    
+    return portals
+
+@api_router.get("/portals/dynamic/all", response_model=List[DynamicPortal])
+async def get_all_dynamic_portals_admin(
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Get ALL dynamic portals (including inactive) - Super Admin only"""
+    portals = await db.dynamic_portals.find({}, {"_id": 0}).to_list(100)
+    return portals
+
+@api_router.post("/portals/dynamic", response_model=DynamicPortal)
+async def create_dynamic_portal(
+    portal: DynamicPortalCreate,
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Create a new dynamic portal - Super Admin only"""
+    
+    # Check if permission key already exists
+    existing = await db.dynamic_portals.find_one({"permission_key": portal.permission_key})
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"بوابة بنفس مفتاح الصلاحية '{portal.permission_key}' موجودة بالفعل"
+        )
+    
+    new_portal = DynamicPortal(
+        **portal.model_dump(),
+        created_by=user["id"]
+    )
+    
+    await db.dynamic_portals.insert_one(new_portal.model_dump())
+    
+    return new_portal
+
+@api_router.put("/portals/dynamic/{portal_id}", response_model=DynamicPortal)
+async def update_dynamic_portal(
+    portal_id: str,
+    updates: DynamicPortalUpdate,
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Update a dynamic portal - Super Admin only"""
+    
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    update_data["updated_at"] = now_iso()
+    
+    await db.dynamic_portals.update_one(
+        {"id": portal_id},
+        {"$set": update_data}
+    )
+    
+    updated_portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    return updated_portal
+
+@api_router.delete("/portals/dynamic/{portal_id}")
+async def delete_dynamic_portal(
+    portal_id: str,
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Delete a dynamic portal - Super Admin only"""
+    
+    result = await db.dynamic_portals.delete_one({"id": portal_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    return {"message": "تم حذف البوابة بنجاح", "id": portal_id}
+
+
+# ─── Portal Pages CRUD ───
+
+@api_router.post("/portals/dynamic/{portal_id}/pages", response_model=DynamicPortal)
+async def add_portal_page(
+    portal_id: str,
+    page: PortalPage,
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Add a page to a portal"""
+    
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    # Add page
+    pages = portal.get("pages", [])
+    pages.append(page.model_dump())
+    
+    await db.dynamic_portals.update_one(
+        {"id": portal_id},
+        {
+            "$set": {
+                "pages": pages,
+                "updated_at": now_iso()
+            }
+        }
+    )
+    
+    updated_portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    return updated_portal
+
+@api_router.put("/portals/dynamic/{portal_id}/pages/{page_id}", response_model=DynamicPortal)
+async def update_portal_page(
+    portal_id: str,
+    page_id: str,
+    page_update: PortalPage,
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Update a portal page"""
+    
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    pages = portal.get("pages", [])
+    page_found = False
+    
+    for i, p in enumerate(pages):
+        if p["id"] == page_id:
+            pages[i] = page_update.model_dump()
+            page_found = True
+            break
+    
+    if not page_found:
+        raise HTTPException(status_code=404, detail="الصفحة غير موجودة")
+    
+    await db.dynamic_portals.update_one(
+        {"id": portal_id},
+        {
+            "$set": {
+                "pages": pages,
+                "updated_at": now_iso()
+            }
+        }
+    )
+    
+    updated_portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    return updated_portal
+
+@api_router.delete("/portals/dynamic/{portal_id}/pages/{page_id}")
+async def delete_portal_page(
+    portal_id: str,
+    page_id: str,
+    user: Dict[str, Any] = Depends(require_super_admin)
+):
+    """Delete a portal page"""
+    
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    pages = portal.get("pages", [])
+    pages = [p for p in pages if p["id"] != page_id]
+    
+    await db.dynamic_portals.update_one(
+        {"id": portal_id},
+        {
+            "$set": {
+                "pages": pages,
+                "updated_at": now_iso()
+            }
+        }
+    )
+    
+    return {"message": "تم حذف الصفحة بنجاح", "page_id": page_id}
+
+
+# ─── Dynamic Data APIs ───
+
+@api_router.post("/portals/dynamic/{portal_id}/data/{collection_name}")
+async def create_dynamic_data(
+    portal_id: str,
+    collection_name: str,
+    data: Dict[str, Any] = Body(...),
+    user: Dict[str, Any] = Depends(require_user)
+):
+    """Create data in a dynamic collection"""
+    
+    # Verify portal exists and user has permission
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
+        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
+    
+    # Add metadata
+    record = {
+        "id": str(uuid.uuid4()),
+        **data,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "created_by": user["id"]
+    }
+    
+    await db[collection_name].insert_one(record)
+    
+    # Remove MongoDB _id
+    record.pop("_id", None)
+    
+    return record
+
+@api_router.get("/portals/dynamic/{portal_id}/data/{collection_name}")
+async def get_dynamic_data(
+    portal_id: str,
+    collection_name: str,
+    user: Dict[str, Any] = Depends(require_user)
+):
+    """Get data from a dynamic collection"""
+    
+    # Verify portal exists and user has permission
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
+        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
+    
+    data = await db[collection_name].find({}, {"_id": 0}).to_list(1000)
+    
+    return data
+
+@api_router.put("/portals/dynamic/{portal_id}/data/{collection_name}/{record_id}")
+async def update_dynamic_data(
+    portal_id: str,
+    collection_name: str,
+    record_id: str,
+    data: Dict[str, Any] = Body(...),
+    user: Dict[str, Any] = Depends(require_user)
+):
+    """Update data in a dynamic collection"""
+    
+    # Verify portal and permissions
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
+        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
+    
+    # Update record
+    data["updated_at"] = now_iso()
+    
+    result = await db[collection_name].update_one(
+        {"id": record_id},
+        {"$set": data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="السجل غير موجود")
+    
+    updated = await db[collection_name].find_one({"id": record_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/portals/dynamic/{portal_id}/data/{collection_name}/{record_id}")
+async def delete_dynamic_data(
+    portal_id: str,
+    collection_name: str,
+    record_id: str,
+    user: Dict[str, Any] = Depends(require_user)
+):
+    """Delete data from a dynamic collection"""
+    
+    # Verify portal and permissions
+    portal = await db.dynamic_portals.find_one({"id": portal_id}, {"_id": 0})
+    if not portal:
+        raise HTTPException(status_code=404, detail="البوابة غير موجودة")
+    
+    if user["role"] != "super_admin" and portal["permission_key"] not in user.get("allowed_portals", []):
+        raise HTTPException(status_code=403, detail="غير مصرح لك بالوصول لهذه البوابة")
+    
+    result = await db[collection_name].delete_one({"id": record_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="السجل غير موجود")
+    
+    return {"message": "تم الحذف بنجاح", "id": record_id}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# END DYNAMIC PORTAL BUILDER SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
 _PASSWORD_FIELDS = {"password_hash", "salt", "password"}
 
 
