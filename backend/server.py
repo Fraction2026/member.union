@@ -4529,15 +4529,40 @@ async def list_subscriptions(
         else:
             query["is_dues_settlement"] = {"$ne": True}
     if search:
+        # Normalize Arabic and English numbers for better search
+        search_normalized = search.strip()
+        # Convert Arabic numbers to English
+        arabic_to_english = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+        search_english = search_normalized.translate(arabic_to_english)
+        # Convert English numbers to Arabic
+        english_to_arabic = str.maketrans('0123456789', '٠١٢٣٤٥٦٧٨٩')
+        search_arabic = search_normalized.translate(english_to_arabic)
+        
+        # Search in both formats (original, English numbers, Arabic numbers)
         query["$or"] = [
-            {"permit_number": {"$regex": search, "$options": "i"}},
-            {"governorate": {"$regex": search, "$options": "i"}},
-            {"union_committee": {"$regex": search, "$options": "i"}},
-            {"cheque_number": {"$regex": search, "$options": "i"}},
-            {"electronic_reference": {"$regex": search, "$options": "i"}},
-            {"payment_details": {"$regex": search, "$options": "i"}},
-            {"notes": {"$regex": search, "$options": "i"}},
+            {"permit_number": {"$regex": search_normalized, "$options": "i"}},
+            {"governorate": {"$regex": search_normalized, "$options": "i"}},
+            {"union_committee": {"$regex": search_normalized, "$options": "i"}},
+            {"cheque_number": {"$regex": search_normalized, "$options": "i"}},
+            {"electronic_reference": {"$regex": search_normalized, "$options": "i"}},
+            {"payment_details": {"$regex": search_normalized, "$options": "i"}},
+            {"notes": {"$regex": search_normalized, "$options": "i"}},
         ]
+        
+        # Add searches with converted numbers if different from original
+        if search_english != search_normalized:
+            query["$or"].extend([
+                {"permit_number": {"$regex": search_english, "$options": "i"}},
+                {"cheque_number": {"$regex": search_english, "$options": "i"}},
+                {"electronic_reference": {"$regex": search_english, "$options": "i"}},
+            ])
+        
+        if search_arabic != search_normalized:
+            query["$or"].extend([
+                {"permit_number": {"$regex": search_arabic, "$options": "i"}},
+                {"cheque_number": {"$regex": search_arabic, "$options": "i"}},
+                {"electronic_reference": {"$regex": search_arabic, "$options": "i"}},
+            ])
     
     # Get total count
     total = await db.subscriptions.count_documents(query)
