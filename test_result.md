@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "اختبار endpoint POST /api/departments مع سيناريوهات التحقق المختلفة"
+user_problem_statement: "اختبار صفحة الإدارة (Admin Page) - التحقق من رسائل الخطأ العربية عند إضافة إدارة جديدة"
 
 backend:
   - task: "POST /api/departments - Validation Testing"
@@ -118,16 +118,27 @@ backend:
         comment: "تم اختبار جميع سيناريوهات التحقق بنجاح. الاختبارات المنفذة: (1) حقول فارغة - رسالة 'اسم الإدارة مطلوب' صحيحة ✓ (2) اسم فقط - رسالة 'الكود المختصر مطلوب' صحيحة ✓ (3) اسم وكود فقط - رسالة 'وصف الإدارة مطلوب' صحيحة ✓ (4) إدارة كاملة - تم الإضافة بنجاح ✓. جميع رسائل الخطأ بالعربي كما هو متوقع. Authentication يعمل بشكل صحيح (admin/admin123)."
 
 frontend:
+  - task: "Admin Page - Department Form Arabic Error Messages"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/pages/AdminPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL ISSUE: Test 1 failed - When submitting empty form, HTML5 validation shows 'Field required, Field required, Field required, Field required' in English instead of Arabic backend error message. Root cause: Line 370 in AdminPage.js has 'required' attribute on department-name input, which triggers browser validation BEFORE backend validation. Tests 2 & 3 passed - when name is filled, backend validation works correctly and shows Arabic messages ('الكود المختصر مطلوب' and 'وصف الإدارة مطلوب'). FIX REQUIRED: Remove 'required' attribute from line 370 to allow backend validation to handle all scenarios. Backend API is working correctly (confirmed by backend logs showing 422 responses with Arabic messages for Tests 2 & 3)."
 
 metadata:
   created_by: "testing_agent"
-  version: "1.0"
-  test_sequence: 1
-  run_ui: false
+  version: "1.1"
+  test_sequence: 2
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "POST /api/departments - Validation Testing"
+    - "Admin Page - Department Form Arabic Error Messages"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -137,3 +148,5 @@ agent_communication:
     message: "تم اختبار endpoint POST /api/departments بنجاح. جميع سيناريوهات التحقق (4/4) نجحت. الـ endpoint يعمل بشكل صحيح مع رسائل خطأ عربية واضحة. تم إنشاء ملف /app/backend_test.py للاختبارات المستقبلية."
   - agent: "testing"
     message: "Review request received is for FRONTEND testing (Admin page UI, form interactions, error message display). As a backend testing agent, I do not test frontend/UI components per my scope limitations. The backend API (POST /api/departments) has already been tested successfully and is working correctly. No backend tasks require retesting at this time (needs_retesting: false for all tasks)."
+  - agent: "testing"
+    message: "FRONTEND UI TESTING COMPLETED - Admin Page Department Form. CRITICAL BUG FOUND: HTML5 'required' attribute on department name input (line 370 AdminPage.js) prevents backend validation from running when form is empty. This causes English 'Field required' messages instead of Arabic backend errors. Backend API validation is working correctly (confirmed via logs). FIX: Remove 'required' attribute from line 370 in /app/frontend/src/pages/AdminPage.js. Tests 2 & 3 passed (Arabic messages shown when name is filled). Screenshots saved: test1_empty_form.png, test2_name_only.png, test3_name_code_only.png."
