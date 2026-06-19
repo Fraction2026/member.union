@@ -100,7 +100,25 @@ export const getErrorMessage = (error) => {
   if (error?.message === "Network Error") {
     return "تعذر الاتصال من المتصفح. تأكد من اتصال الشبكة ثم جرّب مرة أخرى.";
   }
-  return error?.response?.data?.detail || error?.message || "حدث خطأ غير متوقع";
+  
+  const detail = error?.response?.data?.detail;
+  
+  // إذا كان detail عبارة عن string، استخدمه مباشرة
+  if (typeof detail === "string") {
+    return detail;
+  }
+  
+  // إذا كان detail عبارة عن array من validation errors
+  if (Array.isArray(detail)) {
+    return detail.map(err => err.msg || JSON.stringify(err)).join(", ");
+  }
+  
+  // إذا كان detail عبارة عن object
+  if (detail && typeof detail === "object") {
+    return detail.msg || JSON.stringify(detail);
+  }
+  
+  return error?.message || "حدث خطأ غير متوقع";
 };
 
 // ─── Auto-reload when a new build is deployed ─────────────────────────────
