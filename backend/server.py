@@ -2593,6 +2593,14 @@ async def list_departments(user: Dict[str, Any] = Depends(require_user)):
 
 @api_router.post("/departments", response_model=Department)
 async def create_department(input: DepartmentIn, user: Dict[str, Any] = Depends(require_admin)):
+    # التحقق من الحقول المطلوبة
+    if not input.name or not input.name.strip():
+        raise HTTPException(status_code=422, detail="اسم الإدارة مطلوب")
+    if not input.code or not input.code.strip():
+        raise HTTPException(status_code=422, detail="الكود المختصر مطلوب")
+    if not input.description or not input.description.strip():
+        raise HTTPException(status_code=422, detail="وصف الإدارة مطلوب")
+    
     department = Department(**input.model_dump())
     doc = department.model_dump()
     await db.departments.insert_one(doc)
@@ -2661,6 +2669,14 @@ async def get_retirement_schedule(user: Dict[str, Any] = Depends(require_admin))
 async def save_retirement_schedule(input: List[RetirementScheduleIn], user: Dict[str, Any] = Depends(require_admin)):
     if not input:
         raise HTTPException(status_code=400, detail="يجب إضافة بند واحد على الأقل في جدول المعاش")
+    
+    # التحقق من الحقول المطلوبة لكل صف
+    for idx, item in enumerate(input, 1):
+        if not item.effective_date or not item.effective_date.strip():
+            raise HTTPException(status_code=422, detail=f"تاريخ السريان مطلوب في الصف {idx}")
+        if not item.retirement_age or item.retirement_age <= 0:
+            raise HTTPException(status_code=422, detail=f"سن المعاش مطلوب ويجب أن يكون أكبر من صفر في الصف {idx}")
+    
     docs = [RetirementSchedule(**item.model_dump()).model_dump() for item in input]
     await db.retirement_schedule.delete_many({})
     await db.retirement_schedule.insert_many(docs)
