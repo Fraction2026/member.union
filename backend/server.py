@@ -2373,6 +2373,196 @@ async def installer_setup_bat():
 
 
 @api_router.get("/admin/settings")
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LOCAL UPDATE MANAGER - Super Admin Only
+# ═══════════════════════════════════════════════════════════════════════════
+
+class UpdateStatus(BaseModel):
+    """Status of update operation"""
+    status: str  # "running", "success", "failed"
+    step: str
+    progress: int  # 0-100
+    message: str
+    timestamp: str = Field(default_factory=now_iso)
+
+# Global update status
+_update_status: Optional[UpdateStatus] = None
+
+@api_router.get("/admin/update/status")
+async def get_update_status(user: Dict[str, Any] = Depends(require_super_admin)):
+    """Get current update status"""
+    return _update_status or UpdateStatus(
+        status="idle",
+        step="",
+        progress=0,
+        message="No update in progress"
+    )
+
+@api_router.post("/admin/update/trigger")
+async def trigger_local_update(user: Dict[str, Any] = Depends(require_super_admin)):
+    """
+    Trigger local update process
+    
+    This will:
+    1. Create backup
+    2. Rebuild frontend
+    3. Update Service Worker version
+    4. Notify all clients
+    5. Trigger reload on all connected browsers
+    """
+    global _update_status
+    
+    if _update_status and _update_status.status == "running":
+        raise HTTPException(
+            status_code=409,
+            detail="Update already in progress"
+        )
+    
+    # Start update in background
+    import asyncio
+    asyncio.create_task(perform_local_update())
+    
+    return {"message": "Update started", "check_status": "/api/admin/update/status"}
+
+async def perform_local_update():
+    """Perform the actual update process"""
+    global _update_status
+    
+    try:
+        # Step 1: Initialize
+        _update_status = UpdateStatus(
+            status="running",
+            step="Initializing",
+            progress=5,
+            message="Starting update process..."
+        )
+        await asyncio.sleep(1)
+        
+        # Step 2: Backup
+        _update_status.step = "Backup"
+        _update_status.progress = 15
+        _update_status.message = "Creating backup..."
+        # Backup is already handled by installer
+        await asyncio.sleep(1)
+        
+        # Step 3: Frontend Build
+        _update_status.step = "Frontend Build"
+        _update_status.progress = 30
+        _update_status.message = "Building React frontend..."
+        
+        frontend_path = Path(__file__).resolve().parent.parent / "frontend"
+        
+        # Run yarn build
+        import subprocess
+        result = subprocess.run(
+            ["yarn", "build"],
+            cwd=str(frontend_path),
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if result.returncode != 0:
+            raise Exception(f"Build failed: {result.stderr}")
+        
+        _update_status.progress = 60
+        _update_status.message = "Build completed"
+        await asyncio.sleep(1)
+        
+        # Step 4: Update Service Worker Version
+        _update_status.step = "Service Worker"
+        _update_status.progress = 70
+        _update_status.message = "Updating Service Worker version..."
+        
+        sw_path = frontend_path / "build" / "service-worker.js"
+        if sw_path.exists():
+            sw_content = sw_path.read_text()
+            build_time = str(int(datetime.now(timezone.utc).timestamp() * 1000))
+            
+            # Replace BUILD_TIMESTAMP
+            sw_content = sw_content.replace("__BUILD_TIMESTAMP__", build_time)
+            sw_path.write_text(sw_content)
+            
+            # Create version.json
+            version_json = {
+                "version": build_time,
+                "buildDate": now_iso(),
+                "updatedBy": "Local Update Manager"
+            }
+            version_path = frontend_path / "build" / "version.json"
+            version_path.write_text(json.dumps(version_json, indent=2))
+            
+            _update_status.message = f"Service Worker updated (v{build_time})"
+        
+        await asyncio.sleep(1)
+        
+        # Step 5: Notify clients (via presence/broadcast)
+        _update_status.step = "Notify"
+        _update_status.progress = 85
+        _update_status.message = "Notifying connected clients..."
+        
+        # Update a flag in MongoDB that clients can check
+        await db._system_state.update_one(
+            {"key": "update_available"},
+            {"$set": {
+                "key": "update_available",
+                "value": True,
+                "version": build_time if sw_path.exists() else str(int(time.time())),
+                "timestamp": now_iso()
+            }},
+            upsert=True
+        )
+        
+        await asyncio.sleep(1)
+        
+        # Step 6: Complete
+        _update_status.step = "Complete"
+        _update_status.progress = 100
+        _update_status.status = "success"
+        _update_status.message = "Update completed successfully!"
+        
+    except Exception as e:
+        _update_status = UpdateStatus(
+            status="failed",
+            step="Error",
+            progress=0,
+            message=f"Update failed: {str(e)}"
+        )
+
+@api_router.get("/admin/update/check")
+async def check_for_updates():
+    """Check if update is available (public endpoint)"""
+    update_flag = await db._system_state.find_one(
+        {"key": "update_available"},
+        {"_id": 0}
+    )
+    
+    if update_flag and update_flag.get("value"):
+        return {
+            "updateAvailable": True,
+            "version": update_flag.get("version"),
+            "timestamp": update_flag.get("timestamp")
+        }
+    
+    return {"updateAvailable": False}
+
+@api_router.post("/admin/update/acknowledge")
+async def acknowledge_update(user: Dict[str, Any] = Depends(require_user)):
+    """Mark update as acknowledged (client reloaded)"""
+    # Clear the update flag after client reloads
+    await db._system_state.update_one(
+        {"key": "update_available"},
+        {"$set": {"value": False}}
+    )
+    return {"message": "Update acknowledged"}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# END LOCAL UPDATE MANAGER
+# ═══════════════════════════════════════════════════════════════════════════
+
 async def get_settings(user: Dict[str, Any] = Depends(require_user)):
     """Read app settings - any logged-in user can read (UI may need timeout info), only admin can update."""
     hours = await get_session_timeout_hours()

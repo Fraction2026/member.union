@@ -26,9 +26,23 @@
  * service-worker tooling. For our manual SW we use a version string in
  * CACHE_NAME — bumping CACHE_VERSION forces old caches to be cleared.
  */
-const CACHE_VERSION = "v2";
+// Dynamic version that changes with each build
+const BUILD_TIMESTAMP = "__BUILD_TIMESTAMP__"; // Replaced during build
+const CACHE_VERSION = BUILD_TIMESTAMP !== "__BUILD_TIMESTAMP__" ? `v-${BUILD_TIMESTAMP}` : `v-${Date.now()}`;
 const STATIC_CACHE = `ea-static-${CACHE_VERSION}`;
 const API_CACHE = `ea-api-${CACHE_VERSION}`;
+
+
+// Listen for messages from the client
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === "CLIENTS_CLAIM") {
+    self.clients.claim();
+  }
+});
 
 const APP_SHELL = [
   "/",
@@ -107,6 +121,12 @@ self.addEventListener("fetch", (event) => {
 
   if (isApiRequest(url)) {
     // Network-first for GET /api/*: never serve a stale list view.
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
+  // HTML files (index.html, etc.) - Network-First for immediate updates
+  if (url.pathname === "/" || url.pathname.endsWith(".html")) {
     event.respondWith(networkFirst(req));
     return;
   }
