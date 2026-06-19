@@ -68,13 +68,25 @@ export default function SubscriptionsPage({ settlementMode = false } = {}) {
   const [dupOpen, setDupOpen] = useState(false);
   const [dupRecord, setDupRecord] = useState(null);
   const [dupRef, setDupRef] = useState("");
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
 
   const loadList = async () => {
-    const params = new URLSearchParams({ department_id: id, is_dues_settlement: settlementMode ? "true" : "false" });
+    const params = new URLSearchParams({ 
+      department_id: id, 
+      is_dues_settlement: settlementMode ? "true" : "false",
+      page: currentPage.toString(),
+      page_size: pageSize.toString()
+    });
     if (statusFilter) params.set("status", statusFilter);
     if (search.trim()) params.set("search", search.trim());
     const { data } = await api.get(`/subscriptions?${params.toString()}`);
-    setItems(data);
+    setItems(data.data || []);
+    setTotal(data.total || 0);
+    setTotalPages(data.total_pages || 1);
   };
   const loadSummary = async () => {
     const { data } = await api.get(`/subscriptions/summary?department_id=${id}`);
@@ -99,10 +111,18 @@ export default function SubscriptionsPage({ settlementMode = false } = {}) {
   }, [id]);
 
   useEffect(() => {
-    const t = setTimeout(() => { loadList().catch((err) => setError(getErrorMessage(err))); }, 250);
+    const t = setTimeout(() => { 
+      setCurrentPage(1); // Reset to page 1 when search/filter changes
+      loadList().catch((err) => setError(getErrorMessage(err))); 
+    }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter]);
+
+  useEffect(() => {
+    loadList().catch((err) => setError(getErrorMessage(err)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   // Live-sync: refresh the subscriptions table when a peer writes — but
   // only if the user is NOT currently editing a subscription dialog.
@@ -437,6 +457,64 @@ export default function SubscriptionsPage({ settlementMode = false } = {}) {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-center gap-2" data-testid="pagination">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="h-8"
+              >
+                السابق
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+                  // Show first page, last page, current page, and pages around current
+                  if (
+                    pageNum === 1 ||
+                    pageNum === totalPages ||
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                  ) {
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === currentPage ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="h-8 w-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  } else if (
+                    pageNum === currentPage - 2 ||
+                    pageNum === currentPage + 2
+                  ) {
+                    return <span key={pageNum} className="px-1">...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="h-8"
+              >
+                التالي
+              </Button>
+
+              <span className="mr-3 text-sm text-slate-600">
+                صفحة {currentPage} من {totalPages} ({total} سجل)
+              </span>
+            </div>
+          )}
         </section>
       </div>
 

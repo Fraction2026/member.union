@@ -4508,12 +4508,14 @@ async def aids_report(
 
 # -------------------- Subscriptions --------------------
 
-@api_router.get("/subscriptions", response_model=List[Subscription])
+@api_router.get("/subscriptions")
 async def list_subscriptions(
     department_id: str,
     status: Optional[str] = None,
     search: Optional[str] = None,
     is_dues_settlement: Optional[bool] = None,
+    page: int = 1,
+    page_size: int = 20,
     user: Dict[str, Any] = Depends(require_user),
 ):
     query: Dict[str, Any] = {"department_id": department_id}
@@ -4534,10 +4536,14 @@ async def list_subscriptions(
             {"cheque_number": {"$regex": search, "$options": "i"}},
             {"electronic_reference": {"$regex": search, "$options": "i"}},
         ]
-    items = await db.subscriptions.find(query, {"_id": 0}).to_list(20000)
+    
+    # Get total count
+    total = await db.subscriptions.count_documents(query)
+    
+    # Fetch all items for sorting (since we need custom sort logic)
+    all_items = await db.subscriptions.find(query, {"_id": 0}).to_list(20000)
+    
     # Sort by permit_number sequentially (numeric-aware).
-    # Records with a parseable leading integer come first in ascending order,
-    # records without come last and sorted alphabetically.
     def _permit_sort_key(it: Dict[str, Any]):
         permit = (it.get("permit_number") or "").strip()
         if not permit:
@@ -4546,8 +4552,19 @@ async def list_subscriptions(
         if m:
             return (0, "", int(m.group(1)))
         return (1, permit, 0)
-    items.sort(key=_permit_sort_key)
-    return items
+    all_items.sort(key=_permit_sort_key)
+    
+    # Apply pagination
+    skip = (page - 1) * page_size
+    items = all_items[skip:skip + page_size]
+    
+    return {
+        "data": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size if page_size else 1,
+    }
 
 
 @api_router.get("/subscriptions/lookup-reference")
