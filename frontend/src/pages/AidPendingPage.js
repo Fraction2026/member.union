@@ -66,42 +66,10 @@ export default function AidPendingPage() {
   const openView = (aid) => {
     // فتح استمارة بحث الحالة في نافذة جديدة
     const apiUrl = process.env.REACT_APP_BACKEND_URL || "";
-    const token = localStorage.getItem("archive_token");
     const url = `${apiUrl}/api/members/${aid.member_id}/case-form?mode=view`;
     
-    // فتح في نافذة جديدة
-    const newWindow = window.open(url, "_blank", "width=1000,height=800");
-    
-    // إضافة الـ token في الـ header (لا يمكن عبر window.open مباشرة، لذا نستخدم fetch)
-    if (newWindow) {
-      newWindow.document.write(`
-        <html>
-          <head><title>استمارة بحث الحالة - ${aid.member_name}</title></head>
-          <body style="margin:0;padding:20px;font-family:Arial,sans-serif;">
-            <div style="text-align:center;padding:40px;">
-              <div style="font-size:18px;color:#64748b;">جاري تحميل الاستمارة...</div>
-            </div>
-            <script>
-              fetch('${url}', {
-                headers: {
-                  'Authorization': 'Bearer ${token}'
-                }
-              })
-              .then(res => res.text())
-              .then(html => {
-                document.open();
-                document.write(html);
-                document.close();
-              })
-              .catch(err => {
-                document.body.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">حدث خطأ أثناء تحميل الاستمارة</div>';
-              });
-            </script>
-          </body>
-        </html>
-      `);
-      newWindow.document.close();
-    }
+    // فتح في نافذة جديدة مباشرة
+    window.open(url, "_blank", "width=1200,height=900");
   };
 
   const setBeneficiary = (idx, val) => {
