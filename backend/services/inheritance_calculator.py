@@ -157,10 +157,11 @@ class InheritanceCalculator:
             remaining -= father_share
         
         # 2. حساب التعصيب أو الرد
-        if has_children:
-            # التعصيب: توزيع الباقي على الأبناء والبنات
-            sons_count = len(classified["sons"])
-            daughters_count = len(classified["daughters"])
+        sons_count = len(classified["sons"])
+        daughters_count = len(classified["daughters"])
+        
+        if sons_count > 0:
+            # يوجد أبناء ذكور: التعصيب (للذكر مثل حظ الأنثيين)
             total_parts = (sons_count * 2) + daughters_count
             
             if total_parts > 0:
@@ -200,10 +201,8 @@ class InheritanceCalculator:
             })
             remaining = Fraction(0)
         
-        elif len(classified["daughters"]) > 0 and len(classified["sons"]) == 0:
+        elif daughters_count > 0:
             # بنات فقط بدون أبناء ذكور - فرض + رد محتمل
-            daughters_count = len(classified["daughters"])
-            
             if daughters_count == 1:
                 # بنت واحدة: نصف فرضاً
                 base_share = Fraction(1, 2)
@@ -270,6 +269,7 @@ class InheritanceCalculator:
             
             # بناء النسبة الشرعية
             base_arabic = share_data["base_arabic"]
+            share_type = share_data["share_type"]
             
             if radd_share > 0:
                 # هناك رد
@@ -279,20 +279,23 @@ class InheritanceCalculator:
             
             # التفسير
             explanation = self._generate_detailed_explanation(
-                name, relation, base_arabic, share_data["share_type"], 
+                name, relation, base_arabic, share_type, 
                 has_children, radd_share > 0
             )
             
             results.append({
                 "name": name,
                 "relation": relation,
-                "base_share": f"{base_share.numerator}/{base_share.denominator}",
-                "radd_share": f"{radd_share.numerator}/{radd_share.denominator}" if radd_share > 0 else "",
-                "percentage": f"{final_share.numerator}/{final_share.denominator}",
+                "base_share_fraction": f"{base_share.numerator}/{base_share.denominator}",
+                "base_share_arabic": base_arabic,
+                "radd_fraction": f"{radd_share.numerator}/{radd_share.denominator}" if radd_share > 0 else "",
+                "final_share_fraction": f"{final_share.numerator}/{final_share.denominator}",
+                "percentage": f"{final_share.numerator}/{final_share.denominator}",  # للتوافق مع الكود القديم
                 "percentage_arabic": percentage_arabic,
+                "share_type": share_type,
                 "share_decimal": float(final_share),
                 "amount": round(amount, 2),
-                "inheritance_type": share_data["share_type"],
+                "inheritance_type": share_type,  # للتوافق مع الكود القديم
                 "explanation": explanation,
             })
         

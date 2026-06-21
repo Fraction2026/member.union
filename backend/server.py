@@ -610,10 +610,15 @@ class AidBeneficiary(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str
     relation: str  # زوج، زوجة، أب، أم، ابن، ابنة
-    percentage: str = ""  # النسبة الرقمية (مثل: 1/2، 1/4)
+    base_share_fraction: str = ""  # الفرض الأصلي قبل الرد (مثل: 1/8، 2/3)
+    base_share_arabic: str = ""  # اسم الفرض بالعربية (مثل: ثمن، ثلثان)
+    radd_fraction: str = ""  # حصة الرد إن وجدت (مثل: 5/24)
+    final_share_fraction: str = ""  # النصيب النهائي بعد الرد (مثل: 7/24)
+    percentage: str = ""  # النسبة الرقمية النهائية (مثل: 1/2، 1/4) - للتوافق مع الكود القديم
     percentage_arabic: str = ""  # النسبة العربية (مثل: نصف، ربع)
+    share_type: str = ""  # نوع الاستحقاق: فرض، فرض + رد، تعصيب
     amount: float = 0.0  # المبلغ المستحق
-    inheritance_type: str = ""  # نوع الاستحقاق: فرض، تعصيب، رد
+    inheritance_type: str = ""  # نوع الاستحقاق: فرض، تعصيب، رد (للتوافق مع الكود القديم)
     explanation: str = ""  # التفسير الشرعي
 
 

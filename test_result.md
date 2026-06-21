@@ -14,7 +14,7 @@
 # Main and testing agents must follow this exact format to maintain testing data. 
 # The testing data must be entered in yaml format Below is the data structure:
 # 
-## user_problem_statement: {problem_statement}
+## user_problem_statement: "تحديث حاسبة الميراث الإسلامي لعرض التفاصيل الكاملة: الفرض الأصلي، الرد، النسبة الشرعية، النسبة النهائية، ونوع الاستحقاق (فرض/فرض+رد/تعصيب)" {problem_statement}
 ## backend:
 ##   - task: "Task name"
 ##     implemented: true
@@ -102,65 +102,73 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "اختبار صفحة الإدارة (Admin Page) - عرض البيانات (الإدارات وجدول المعاش)"
+user_problem_statement: "تحديث حاسبة الميراث الإسلامي لعرض التفاصيل الكاملة: الفرض الأصلي (base_share_fraction)، النسبة الشرعية بالعربية (base_share_arabic)، الرد (radd_fraction)، النسبة النهائية (final_share_fraction)، ونوع الاستحقاق (share_type: فرض/فرض+رد/تعصيب). يجب أن تظهر هذه الحقول في: 1) API response من endpoint calculate-beneficiaries 2) جدول الحاسبة في InheritanceCalculatorDialog.js 3) جدول استمارة بحث الحالة (caseform_html.py)"
 
 backend:
-  - task: "POST /api/departments - Validation Testing"
+  - task: "Inheritance Calculator - Updated Models (AidBeneficiary)"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "تم اختبار جميع سيناريوهات التحقق بنجاح. الاختبارات المنفذة: (1) حقول فارغة - رسالة 'اسم الإدارة مطلوب' صحيحة ✓ (2) اسم فقط - رسالة 'الكود المختصر مطلوب' صحيحة ✓ (3) اسم وكود فقط - رسالة 'وصف الإدارة مطلوب' صحيحة ✓ (4) إدارة كاملة - تم الإضافة بنجاح ✓. جميع رسائل الخطأ بالعربي كما هو متوقع. Authentication يعمل بشكل صحيح (admin/admin123)."
+      - working: "NA"
+        agent: "main"
+        comment: "تم تحديث نموذج AidBeneficiary في server.py (السطور 608-622) لإضافة الحقول الجديدة: base_share_fraction, base_share_arabic, radd_fraction, final_share_fraction, share_type. تم الحفاظ على الحقول القديمة (percentage, inheritance_type) للتوافق مع الكود القديم."
+
+  - task: "Inheritance Calculator - Logic Update (calculate_inheritance)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/services/inheritance_calculator.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "تم تحديث منطق حساب الميراث: 1) تم تصحيح المنطق للتمييز بين وجود أبناء ذكور (تعصيب) ووجود بنات فقط (فرض+رد). 2) تم تحديث دالة _convert_to_amounts لإرجاع الحقول الجديدة بشكل صحيح. 3) تم اختبار الحالات التالية بنجاح: (أ) زوجة + 4 بنات = فرض+رد ✓ (ب) زوج + أم + بنت = فرض+رد ✓ (ج) زوجة + ابن + ابنتان = تعصيب ✓"
+
+  - task: "Case Form HTML - Updated Beneficiaries Table"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/services/caseform_html.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "تم تحديث جدول المستحقين في استمارة بحث الحالة: 1) إضافة أعمدة جديدة: النسبة الشرعية، النسبة الرقمية، نوع الاستحقاق 2) تم تحديث logic لعرض 'ثلثان + رد' بدلاً من الكسر النهائي فقط عندما يكون هناك رد 3) تم تعديل عرض الأعمدة في الجدول (thead + tbody)"
 
 frontend:
-  - task: "Admin Page - Department Form Arabic Error Messages"
+  - task: "Inheritance Calculator Dialog - Updated UI Table"
     implemented: true
-    working: false
-    file: "/app/frontend/src/pages/AdminPage.js"
+    working: "NA"
+    file: "/app/frontend/src/components/InheritanceCalculatorDialog.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: false
-        agent: "testing"
-        comment: "CRITICAL ISSUE: Test 1 failed - When submitting empty form, HTML5 validation shows 'Field required, Field required, Field required, Field required' in English instead of Arabic backend error message. Root cause: Line 370 in AdminPage.js has 'required' attribute on department-name input, which triggers browser validation BEFORE backend validation. Tests 2 & 3 passed - when name is filled, backend validation works correctly and shows Arabic messages ('الكود المختصر مطلوب' and 'وصف الإدارة مطلوب'). FIX REQUIRED: Remove 'required' attribute from line 370 to allow backend validation to handle all scenarios. Backend API is working correctly (confirmed by backend logs showing 422 responses with Arabic messages for Tests 2 & 3)."
-  
-  - task: "Admin Page - Data Display (Departments and Retirement Schedule)"
-    implemented: true
-    working: true
-    file: "/app/frontend/src/pages/AdminPage.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "✅ ALL TESTS PASSED - Admin page data display verified successfully. Test results: (1) Login with admin/admin123 - SUCCESS ✓ (2) Departments section - Found 2 departments as expected: 'مشروع التكافل الاجتماعي' and 'test' ✓ (3) Delete buttons - All 2 departments have visible delete buttons (trash icon) ✓ (4) Retirement schedule - Found 5 rows as expected with ages: 60, 61, 62, 63, 65 ✓ (5) No error messages on page ✓. Screenshots captured: admin_page_full.png, admin_departments_section.png, admin_retirement_section.png. All requirements met successfully."
+      - working: "NA"
+        agent: "main"
+        comment: "تم تحديث واجهة الحاسبة لعرض الأعمدة الجديدة: 1) الفرض الأصلي (base_share_fraction) 2) النسبة الشرعية (base_share_arabic) 3) الرد (radd_fraction) 4) النسبة النهائية (final_share_fraction) 5) نوع الاستحقاق (share_type). تم تعديل الجدول في السطور 262-318 مع تحديث عدد الأعمدة من 7 إلى 9 أعمدة."
 
 metadata:
-  created_by: "testing_agent"
-  version: "1.2"
-  test_sequence: 3
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 1
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Admin Page - Data Display (Departments and Retirement Schedule)"
+    - "Inheritance Calculator - Logic Update (calculate_inheritance)"
+    - "Inheritance Calculator Dialog - Updated UI Table"
+    - "Case Form HTML - Updated Beneficiaries Table"
   stuck_tasks: []
-  test_all: false
+  test_all: true
   test_priority: "high_first"
 
 agent_communication:
-  - agent: "testing"
-    message: "تم اختبار endpoint POST /api/departments بنجاح. جميع سيناريوهات التحقق (4/4) نجحت. الـ endpoint يعمل بشكل صحيح مع رسائل خطأ عربية واضحة. تم إنشاء ملف /app/backend_test.py للاختبارات المستقبلية."
-  - agent: "testing"
-    message: "Review request received is for FRONTEND testing (Admin page UI, form interactions, error message display). As a backend testing agent, I do not test frontend/UI components per my scope limitations. The backend API (POST /api/departments) has already been tested successfully and is working correctly. No backend tasks require retesting at this time (needs_retesting: false for all tasks)."
-  - agent: "testing"
-    message: "FRONTEND UI TESTING COMPLETED - Admin Page Department Form. CRITICAL BUG FOUND: HTML5 'required' attribute on department name input (line 370 AdminPage.js) prevents backend validation from running when form is empty. This causes English 'Field required' messages instead of Arabic backend errors. Backend API validation is working correctly (confirmed via logs). FIX: Remove 'required' attribute from line 370 in /app/frontend/src/pages/AdminPage.js. Tests 2 & 3 passed (Arabic messages shown when name is filled). Screenshots saved: test1_empty_form.png, test2_name_only.png, test3_name_code_only.png."
-  - agent: "testing"
-    message: "✅ ADMIN PAGE DATA DISPLAY TESTING COMPLETED - All tests passed successfully. Verified: (1) Login functionality working correctly (2) Departments section displays 2 departments correctly ('مشروع التكافل الاجتماعي' and 'test') (3) All departments have delete buttons visible (4) Retirement schedule displays 5 rows with correct ages (60-65 range). No issues found. Screenshots captured for documentation."
+  - agent: "main"
+    message: "تم تنفيذ التحديثات المطلوبة على حاسبة الميراث. التعديلات شملت: (1) تحديث النماذج في server.py (2) تصحيح منطق الحساب في inheritance_calculator.py للتمييز الصحيح بين التعصيب (أبناء ذكور) والفرض+الرد (بنات فقط) (3) تحديث واجهة InheritanceCalculatorDialog.js لعرض 9 أعمدة بدلاً من 7 (4) تحديث جدول استمارة بحث الحالة في caseform_html.py. تم اختبار المنطق الرياضي بنجاح عبر Python CLI: حالة زوجة+4 بنات تعطي فرض+رد بشكل صحيح. يُرجى اختبار: (1) Backend API endpoint لحساب التوزيع (2) Frontend UI للتأكد من عرض الأعمدة الجديدة (3) استمارة بحث الحالة PDF/HTML"

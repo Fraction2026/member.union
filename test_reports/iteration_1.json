@@ -1,0 +1,34 @@
+{
+  "summary": "Tested Islamic inheritance calculator updates (فرض، رد، تعصيب). Backend 6/6 passing (3 direct calculator tests + 3 API endpoint tests). All required new fields (base_share_fraction, base_share_arabic, radd_fraction, final_share_fraction, share_type) are present in API responses. Frontend code inspection confirms 9 columns are rendered in InheritanceCalculatorDialog.js. Frontend UI navigation deep test partial (login worked, but reaching the calculator dialog requires department selection + existing pending aids).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_inheritance_calculator.py",
+    "/app/test_reports/pytest/inheritance_results.xml"
+  ],
+  "action_items": [
+    "Backend logic is correct and validated. No fixes needed.",
+    "Main agent may want to add data-testid attributes on the calculator-open button and on header <th> cells in InheritanceCalculatorDialog.js so future UI automation can deterministically reach the dialog without navigating through department selection.",
+    "Recommend full manual / e2e verification of the printed case form (caseform_html.py) - server-side string rendering of beneficiaries table looks correct (uses base_share_arabic + رد, final_share_fraction, share_type) but no automated test executes the HTML generation path."
+  ],
+  "critical_code_review_comments": [
+    "inheritance_calculator.py: math is correct — verified for (1) wife+4 daughters (wife 1/8 فرض, daughters 2/3 + رد splitting the remainder by their farḍ proportion), (2) husband+mother+daughter (husband 1/4 فرض no radd, mother 1/6 + رد, daughter 1/2 + رد), and (3) wife+son+2 daughters (wife 1/8 فرض, son+daughters تعصيب with 2:1:1 ratio). Total distributed equals input within < 0.5 EGP rounding.",
+    "Server.py AidBeneficiary model (lines 608-622) correctly adds the 5 new fields with sensible defaults; backward compatibility fields (percentage, percentage_arabic, inheritance_type) preserved.",
+    "InheritanceCalculatorDialog.js (lines 262-318) renders 9 columns as required, with proper fallback to legacy field names (result.base_share_fraction || result.base_share, etc.) — defensive coding.",
+    "caseform_html.py (lines 144-176) builds the printed table with the new fields and a 'X + رد' display format. Confirms integration with calculator output."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_inheritance_calculator.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "code-review only"},
+  "test_credentials": "admin / admin123 (works against /api/auth/login)",
+  "seed_data_creation": "None. Tests used existing aid from default department.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend logic + API endpoints are fully validated. If retesting frontend UI: login then navigate via /departments → click TAKAFUL card → then go to aids/pending. Calculator button is opened from each pending aid row. The 9-column table is present in code and confirmed via code review.",
+  "rca of the issue": "N/A — feature works as designed. Tested all three Islamic inheritance scenarios from the request and field naming matches Pydantic model and frontend rendering."
+}
