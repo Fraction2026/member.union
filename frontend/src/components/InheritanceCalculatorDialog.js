@@ -1,0 +1,330 @@
+import { useState, useEffect } from "react";
+import { Calculator, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "../components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { api, getErrorMessage } from "../lib/api";
+
+const RELATION_TYPES = [
+  { value: "زوج", label: "زوج" },
+  { value: "زوجة", label: "زوجة" },
+  { value: "أب", label: "أب" },
+  { value: "أم", label: "أم" },
+  { value: "ابن", label: "ابن" },
+  { value: "بنت", label: "بنت" },
+];
+
+export default function InheritanceCalculatorDialog({ open, onOpenChange, aid }) {
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [beneficiaries, setBeneficiaries] = useState([{ name: "", relation: "" }]);
+  const [results, setResults] = useState([]);
+  const [validation, setValidation] = useState(null);
+  const [calculating, setCalculating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // جلب البيانات المحفوظة سابقاً عند فتح الـ dialog
+  useEffect(() => {
+    if (open && aid) {
+      loadSavedData();
+    }
+  }, [open, aid]);
+
+  const loadSavedData = async () => {
+    setLoading(true);
+    try {
+      // جلب أصل المبلغ من الإعانة
+      const amount = aid.amount || 0;
+      setTotalAmount(amount);
+
+      // جلب المستحقين المحفوظين إن وجدوا
+      const { data } = await api.get(`/aids/${aid.id}/beneficiaries`);
+      
+      if (data.found && data.beneficiaries && data.beneficiaries.length > 0) {
+        // توجد بيانات محفوظة مسبقاً
+        setBeneficiaries(data.beneficiaries.map(b => ({ name: b.name, relation: b.relation })));
+        setResults(data.beneficiaries);
+        setValidation({
+          is_valid: true,
+          total_amount: data.total_amount,
+          total_distributed: data.beneficiaries.reduce((sum, b) => sum + (b.amount || 0), 0),
+        });
+      } else {
+        // لا توجد بيانات، استخدم القيم الافتراضية
+        const defaultBenName = aid.member_beneficiary_name || "";
+        if (defaultBenName) {
+          setBeneficiaries([{ name: defaultBenName, relation: "" }]);
+        } else {
+          setBeneficiaries([{ name: "", relation: "" }]);
+        }
+        setResults([]);
+        setValidation(null);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addBeneficiary = () => {
+    setBeneficiaries([...beneficiaries, { name: "", relation: "" }]);
+  };
+
+  const removeBeneficiary = (index) => {
+    if (beneficiaries.length === 1) {
+      toast.error("يجب أن يكون هناك مستحق واحد على الأقل");
+      return;
+    }
+    setBeneficiaries(beneficiaries.filter((_, i) => i !== index));
+  };
+
+  const updateBeneficiary = (index, field, value) => {
+    const updated = [...beneficiaries];
+    updated[index][field] = value;
+    setBeneficiaries(updated);
+  };
+
+  const calculateDistribution = async () => {
+    // التحقق من البيانات
+    if (totalAmount <= 0) {
+      toast.error("أصل المبلغ يجب أن يكون أكبر من صفر");
+      return;
+    }
+
+    const incompleteBeneficiaries = beneficiaries.filter(b => !b.name.trim() || !b.relation);
+    if (incompleteBeneficiaries.length > 0) {
+      toast.error("يرجى إدخال الاسم ودرجة القرابة لجميع المستحقين");
+      return;
+    }
+
+    setCalculating(true);
+    try {
+      const { data } = await api.post(`/aids/${aid.id}/calculate-beneficiaries`, {
+        total_amount: totalAmount,
+        beneficiaries: beneficiaries,
+      });
+
+      setResults(data.results || []);
+      setValidation(data.validation || null);
+      
+      if (data.validation && data.validation.is_valid) {
+        toast.success("تم حساب التوزيع بنجاح");
+      } else {
+        toast.warning("تم الحساب لكن هناك فرق في التوزيع");
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const saveResults = async () => {
+    if (results.length === 0) {
+      toast.error("يرجى حساب التوزيع أولاً");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.post(`/aids/${aid.id}/save-beneficiaries`, {
+        aid_id: aid.id,
+        total_amount: totalAmount,
+        beneficiaries: results,
+      });
+
+      toast.success("تم حفظ بيانات المستحقين بنجاح");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetForm = () => {
+    const defaultBenName = aid?.member_beneficiary_name || "";
+    if (defaultBenName) {
+      setBeneficiaries([{ name: defaultBenName, relation: "" }]);
+    } else {
+      setBeneficiaries([{ name: "", relation: "" }]);
+    }
+    setResults([]);
+    setValidation(null);
+  };
+
+  if (!aid) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-purple-600" />
+            حاسبة توزيع الإعانة على المستحقين
+          </DialogTitle>
+          <DialogDescription>
+            حساب توزيع الإعانة حسب قواعد الميراث الشرعي - {aid.member_name}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* أصل المبلغ */}
+            <div>
+              <Label htmlFor="total-amount">أصل مبلغ الإعانة المعتمد (ج.م)</Label>
+              <Input
+                id="total-amount"
+                type="number"
+                step="0.01"
+                value={totalAmount}
+                onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)}
+                className="mt-1 text-lg font-bold"
+              />
+            </div>
+
+            {/* المستحقون */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-bold">المستحقون</Label>
+                <Button size="sm" variant="outline" onClick={addBeneficiary}>
+                  <Plus className="h-4 w-4 ml-1" /> إضافة مستحق
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {beneficiaries.map((ben, idx) => (
+                  <div key={idx} className="flex gap-3 items-start p-3 border rounded-lg bg-slate-50">
+                    <div className="flex-1">
+                      <Label className="text-xs text-slate-600">الاسم</Label>
+                      <Input
+                        value={ben.name}
+                        onChange={(e) => updateBeneficiary(idx, "name", e.target.value)}
+                        placeholder="اسم المستحق"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="w-48">
+                      <Label className="text-xs text-slate-600">درجة القرابة</Label>
+                      <Select
+                        value={ben.relation}
+                        onValueChange={(value) => updateBeneficiary(idx, "relation", value)}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="اختر..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RELATION_TYPES.map((rel) => (
+                            <SelectItem key={rel.value} value={rel.value}>
+                              {rel.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700 mt-6"
+                      onClick={() => removeBeneficiary(idx)}
+                      disabled={beneficiaries.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* زر الحساب */}
+            <div className="flex gap-3">
+              <Button onClick={calculateDistribution} disabled={calculating} className="bg-purple-600 hover:bg-purple-700">
+                {calculating ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Calculator className="h-4 w-4 ml-2" />}
+                حساب التوزيع
+              </Button>
+              <Button variant="outline" onClick={resetForm}>
+                <X className="h-4 w-4 ml-2" /> إعادة تعيين
+              </Button>
+            </div>
+
+            {/* النتائج */}
+            {results.length > 0 && (
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-bold text-slate-700 mb-3">نتائج التوزيع</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-purple-50">
+                        <th className="border border-slate-300 px-3 py-2 text-right">#</th>
+                        <th className="border border-slate-300 px-3 py-2 text-right">الاسم</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center">درجة القرابة</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center">النسبة</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center">المبلغ (ج.م)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.map((result, idx) => (
+                        <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                          <td className="border border-slate-300 px-3 py-2 text-center">{idx + 1}</td>
+                          <td className="border border-slate-300 px-3 py-2 font-medium">{result.name}</td>
+                          <td className="border border-slate-300 px-3 py-2 text-center">{result.relation}</td>
+                          <td className="border border-slate-300 px-3 py-2 text-center font-bold text-purple-700">
+                            {result.percentage}
+                          </td>
+                          <td className="border border-slate-300 px-3 py-2 text-center font-bold text-emerald-700">
+                            {result.amount.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-emerald-50 font-bold">
+                        <td colSpan={4} className="border border-slate-300 px-3 py-2 text-right">
+                          الإجمالي الموزع:
+                        </td>
+                        <td className="border border-slate-300 px-3 py-2 text-center text-emerald-700">
+                          {validation?.total_distributed?.toFixed(2) || "0.00"}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* التحقق */}
+                {validation && (
+                  <div className={`mt-3 p-3 rounded-lg ${validation.is_valid ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+                    <p className="text-sm font-medium">
+                      {validation.is_valid ? (
+                        <>✅ التوزيع صحيح - الإجمالي الموزع = أصل المبلغ</>
+                      ) : (
+                        <>⚠️ تحذير: يوجد فرق {validation.difference?.toFixed(2)} ج.م</>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            إلغاء
+          </Button>
+          <Button onClick={saveResults} disabled={saving || results.length === 0} className="bg-emerald-600 hover:bg-emerald-700">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Save className="h-4 w-4 ml-2" />}
+            حفظ النتائج
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

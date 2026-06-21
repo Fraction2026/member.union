@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Clock, Eye, HandCoins, Loader2, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Wallet } from "lucide-react";
+import { Calculator, Eye, HandCoins, Loader2, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Wallet } from "lucide-react";
 import AppShell from "../components/AppShell";
 import GatewayHero from "../components/GatewayHero";
 import { Button } from "../components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { api, getErrorMessage } from "../lib/api";
+import InheritanceCalculatorDialog from "../components/InheritanceCalculatorDialog";
 
 const fmtNum = (n) => Number(n || 0).toLocaleString("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -31,6 +32,10 @@ export default function AidPendingPage() {
   const [active, setActive] = useState(null);
   const [form, setForm] = useState(emptyDisburse);
   const [busy, setBusy] = useState(false);
+  
+  // حالة الحاسبة
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [calcBusy, setCalcBusy] = useState(false);
 
   const load = async () => {
     const params = new URLSearchParams({ department_id: id, status: "pending" });
@@ -147,6 +152,11 @@ export default function AidPendingPage() {
         newWindow.document.close();
       });
     }
+  };
+  
+  const openCalculator = (aid) => {
+    setActive(aid);
+    setCalculatorOpen(true);
   };
 
   const setBeneficiary = (idx, val) => {
@@ -368,6 +378,16 @@ export default function AidPendingPage() {
                           >
                             <Eye className="h-4 w-4" /> عرض
                           </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-purple-600 hover:bg-purple-50 hover:text-purple-700" 
+                            onClick={() => openCalculator(it)} 
+                            data-testid={`aid-calc-btn-${it.id}`}
+                            title="المستحقون للإعانة"
+                          >
+                            <Calculator className="h-4 w-4" /> المستحقون للإعانة
+                          </Button>
                           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => openDisburse(it)} data-testid={`aid-disburse-btn-${it.id}`}>
                             <Wallet className="h-4 w-4" /> اعتماد الصرف
                           </Button>
@@ -463,6 +483,13 @@ export default function AidPendingPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* حاسبة توزيع الإعانة */}
+      <InheritanceCalculatorDialog 
+        open={calculatorOpen} 
+        onOpenChange={setCalculatorOpen} 
+        aid={active} 
+      />
     </AppShell>
   );
 }
