@@ -3804,7 +3804,7 @@ async def _last_collected_subscription_month(department_id: str, governorate: st
     return ""
 
 
-def render_case_research_form_html(member: Dict[str, Any], mode: str = "print", dues_note: str = "", dues_note_clean: bool = False, last_paid_month: str = "") -> str:
+def render_case_research_form_html(member: Dict[str, Any], mode: str = "print", dues_note: str = "", dues_note_clean: bool = False, last_paid_month: str = "", beneficiaries: list = None) -> str:
     """Thin wrapper around services.caseform_html.render_case_research_form_html.
 
     Passes the local _format_date_for_form helper so dates display as DD / MM / YYYY.
@@ -3813,6 +3813,7 @@ def render_case_research_form_html(member: Dict[str, Any], mode: str = "print", 
         member, mode=mode, dues_note=dues_note, dues_note_clean=dues_note_clean,
         date_formatter=_format_date_for_form,
         last_paid_month=last_paid_month,
+        beneficiaries=beneficiaries,
     )
 
 
