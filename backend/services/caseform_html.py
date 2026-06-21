@@ -249,8 +249,8 @@ def render_case_research_form_html(
   .full .value {{ min-height: 28px; border-bottom: 2px dotted #4b5563; }}
 
   table.beneficiaries {{ width:100%; border-collapse:collapse; height:100%; }}
-  table.beneficiaries th, table.beneficiaries td {{ border:1px solid #94a3b8; padding:0 6px; text-align:center; font-size:12.5px; line-height:1.1; }}
-  table.beneficiaries th {{ background:#e8eef7; color:#0f3a73; font-weight:700; padding:3px 6px; }}
+  table.beneficiaries th, table.beneficiaries td {{ border:1px solid #94a3b8; padding:2px 4px; text-align:center; font-size:12px; line-height:1.15; }}
+  table.beneficiaries th {{ background:#e8eef7; color:#0f3a73; font-weight:700; padding:3px 4px; }}
   table.beneficiaries tbody tr:nth-child(odd) td {{ background:#fbfcfe; }}
 
   .signatures {{ margin-top:6px; padding-top:5px; border-top:1px dashed #94a3b8; flex-shrink:0; }}
@@ -342,12 +342,12 @@ def render_case_research_form_html(
           <table class=\"beneficiaries\">
             <thead>
               <tr>
-                <th style=\"width:6%\">م</th>
-                <th style=\"width:36%\">الاسم</th>
-                <th style=\"width:16%\">درجة القرابة</th>
-                <th style=\"width:26%\">النسبة الشرعية</th>
+                <th style=\"width:4%\">م</th>
+                <th style=\"width:26%\">الاسم</th>
+                <th style=\"width:12%\">درجة القرابة</th>
+                <th style=\"width:22%\">النسبة الشرعية</th>
                 <th style=\"width:10%\">المبلغ</th>
-                <th style=\"width:6%\">ملاحظات</th>
+                <th style=\"width:26%\">ملاحظات</th>
               </tr>
             </thead>
             <tbody>
