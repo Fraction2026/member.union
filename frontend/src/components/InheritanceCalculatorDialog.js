@@ -270,7 +270,6 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                         <th className="border border-slate-300 px-2 py-2 text-right">#</th>
                         <th className="border border-slate-300 px-2 py-2 text-right">الاسم</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">درجة القرابة</th>
-                        <th className="border border-slate-300 px-2 py-2 text-center">الفرض الأصلي</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">النسبة الشرعية</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">الرد</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">المبلغ (ج.م)</th>
@@ -307,9 +306,6 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                               <td className="border border-slate-300 px-2 py-2 text-center">{idx + 1}</td>
                               <td className="border border-slate-300 px-2 py-2 font-medium">{result.name}</td>
                               <td className="border border-slate-300 px-2 py-2 text-center">{result.relation}</td>
-                              <td className="border border-slate-300 px-2 py-2 text-center text-slate-600">
-                                {result.base_share_fraction || result.base_share || "-"}
-                              </td>
                               {/* دمج خلية النسبة الشرعية للمستحقين المتشابهين */}
                               {isFirstInGroup && (
                                 <td 
@@ -333,7 +329,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                     </tbody>
                     <tfoot>
                       <tr className="bg-emerald-50 font-bold">
-                        <td colSpan={6} className="border border-slate-300 px-2 py-2 text-right">
+                        <td colSpan={5} className="border border-slate-300 px-2 py-2 text-right">
                           الإجمالي الموزع:
                         </td>
                         <td className="border border-slate-300 px-2 py-2 text-center text-emerald-700">

@@ -185,14 +185,14 @@ def render_case_research_form_html(
             amount = ben.get("amount", 0)
             amount_fmt = f"{amount:,.2f}" if amount > 0 else ""
             
-            # بناء الصف
-            row_cells = f'<td>{idx}</td><td style="text-align:right; padding-right:10px; font-weight:700;">{name_ben}</td><td>{relation}</td><td>{base_share_fraction}</td>'
+            # بناء الصف (بدون عمود الفرض الأصلي)
+            row_cells = f'<td>{idx}</td><td style="text-align:right; padding-right:10px; font-weight:700;">{name_ben}</td><td>{relation}</td>'
             
             # خلية النسبة الشرعية (مع rowspan إذا كان أول صف في المجموعة)
             if is_first_in_group:
                 row_cells += f'<td style="font-weight:700; color:#0f3a73; vertical-align:middle;" rowspan="{rowspan}">{share_group_text}</td>'
             
-            # باقي الخلايا (بدون النسبة النهائية ونوع الاستحقاق)
+            # باقي الخلايا
             row_cells += f'<td>{amount_fmt}</td><td></td>'
             
             beneficiaries_rows += f'<tr>{row_cells}</tr>\n'
@@ -202,9 +202,9 @@ def render_case_research_form_html(
             beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
     else:
         # الجدول الافتراضي (8 صفوف فارغة مع اسم المستفيد في الصف الأول إن وجد)
-        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td></tr>\n'
         for idx in range(2, 9):
-            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td></tr>\n'
     
     return f"""<!doctype html>
 <html dir=\"rtl\" lang=\"ar\">
@@ -343,10 +343,9 @@ def render_case_research_form_html(
             <thead>
               <tr>
                 <th style=\"width:6%\">م</th>
-                <th style=\"width:32%\">الاسم</th>
-                <th style=\"width:14%\">درجة القرابة</th>
-                <th style=\"width:12%\">الفرض الأصلي</th>
-                <th style=\"width:20%\">النسبة الشرعية</th>
+                <th style=\"width:36%\">الاسم</th>
+                <th style=\"width:16%\">درجة القرابة</th>
+                <th style=\"width:26%\">النسبة الشرعية</th>
                 <th style=\"width:10%\">المبلغ</th>
                 <th style=\"width:6%\">ملاحظات</th>
               </tr>
