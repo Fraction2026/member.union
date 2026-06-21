@@ -3237,11 +3237,11 @@ async def pension_report(
     page_size: int = 20,
     user: Dict[str, Any] = Depends(require_user),
 ):
-    """تقرير المعاش - الأعضاء الذين حالتهم 'معاش' مع الفلترة والبحث"""
+    """تقرير المعاش - الأعضاء الذين بلغوا سن المعاش (retirement_due = true)"""
     page = max(page, 1)
     page_size = max(min(page_size, 100), 1)
     
-    query: Dict[str, Any] = {"status": "معاش"}
+    query: Dict[str, Any] = {}
     
     if department_id:
         query["department_id"] = department_id
@@ -3249,16 +3249,6 @@ async def pension_report(
         query["governorate"] = governorate
     if union_committee:
         query["union_committee"] = union_committee
-    
-    # فلترة حسب تاريخ الحالة (status_date)
-    if from_date or to_date:
-        date_query: Dict[str, Any] = {}
-        if from_date:
-            date_query["$gte"] = from_date
-        if to_date:
-            date_query["$lte"] = to_date
-        if date_query:
-            query["status_date"] = date_query
     
     # البحث
     if search and search.strip():
@@ -3274,19 +3264,40 @@ async def pension_report(
             {"union_committee": {"$regex": search_normalized, "$options": "i"}},
         ]
     
-    # إجمالي العدد
-    total_count = await db.members.count_documents(query)
+    # جلب جميع الأعضاء وحساب retirement_due
+    all_members = await db.members.find(query, {"_id": 0}).to_list(100000)
+    enriched_members = await enrich_members_retirement(all_members)
     
-    # جلب الصفحة المطلوبة
+    # فلترة الأعضاء الذين بلغوا سن المعاش
+    pension_members = [m for m in enriched_members if m.get("retirement_due") is True]
+    
+    # فلترة حسب تاريخ المعاش (retirement_date)
+    if from_date or to_date:
+        filtered = []
+        for m in pension_members:
+            ret_date = m.get("retirement_date", "")
+            if ret_date:
+                if from_date and ret_date < from_date:
+                    continue
+                if to_date and ret_date > to_date:
+                    continue
+                filtered.append(m)
+        pension_members = filtered
+    
+    # ترتيب حسب تاريخ المعاش (الأحدث أولاً)
+    pension_members.sort(key=lambda x: x.get("retirement_date", ""), reverse=True)
+    
+    # Pagination
+    total_count = len(pension_members)
     skip = (page - 1) * page_size
-    members = await db.members.find(query, {"_id": 0}).sort("status_date", -1).skip(skip).limit(page_size).to_list(page_size)
+    paginated_members = pension_members[skip:skip + page_size]
     
     return {
-        "members": members,
+        "members": paginated_members,
         "total_count": total_count,
         "page": page,
         "page_size": page_size,
-        "total_pages": (total_count + page_size - 1) // page_size,
+        "total_pages": (total_count + page_size - 1) // page_size if total_count > 0 else 0,
     }
 
 

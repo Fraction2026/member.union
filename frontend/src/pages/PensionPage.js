@@ -115,7 +115,8 @@ export default function PensionPage() {
       "رقم العضوية": m.membership_number || "",
       "المحافظة": m.governorate || "",
       "اللجنة النقابية": m.union_committee || "",
-      "تاريخ المعاش": m.status_date || "",
+      "تاريخ المعاش": m.retirement_date || "",
+      "سن المعاش": m.retirement_age || "",
     }));
     
     // إضافة صف الإجمالي
@@ -356,6 +357,7 @@ export default function PensionPage() {
                           <TableHead className="text-right">المحافظة</TableHead>
                           <TableHead className="text-right">اللجنة النقابية</TableHead>
                           <TableHead className="text-right">تاريخ المعاش</TableHead>
+                          <TableHead className="text-right">سن المعاش</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -368,7 +370,8 @@ export default function PensionPage() {
                             <TableCell>{member.membership_number || "-"}</TableCell>
                             <TableCell>{member.governorate || "-"}</TableCell>
                             <TableCell>{member.union_committee || "-"}</TableCell>
-                            <TableCell>{member.status_date || "-"}</TableCell>
+                            <TableCell>{member.retirement_date || "-"}</TableCell>
+                            <TableCell>{member.retirement_age || "-"}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
