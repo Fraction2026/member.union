@@ -5,6 +5,24 @@ from typing import List, Dict, Any
 from fractions import Fraction
 
 
+# قاموس تحويل النسب الرقمية إلى ألفاظ عربية شرعية
+ARABIC_FRACTIONS = {
+    Fraction(1, 2): "نصف",
+    Fraction(1, 4): "ربع",
+    Fraction(1, 8): "ثمن",
+    Fraction(1, 3): "ثلث",
+    Fraction(2, 3): "ثلثان",
+    Fraction(1, 6): "سدس",
+}
+
+
+def fraction_to_arabic(frac: Fraction) -> str:
+    """تحويل الكسر إلى اسم عربي شرعي"""
+    if frac in ARABIC_FRACTIONS:
+        return ARABIC_FRACTIONS[frac]
+    return f"{frac.numerator}/{frac.denominator}"
+
+
 class InheritanceCalculator:
     """حاسبة توزيع الإعانات على المستحقين"""
     
@@ -175,22 +193,136 @@ class InheritanceCalculator:
         return shares
     
     def _convert_to_amounts(self, shares: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """تحويل الحصص إلى مبالغ فعلية"""
+        """تحويل الحصص إلى مبالغ فعلية مع التفسير"""
         results = []
+        
+        # تحديد وجود الأبناء
+        has_children = any(s["relation"] in ["ابن", "ابنة"] for s in shares)
         
         for share_data in shares:
             share_fraction = share_data["share"]
             amount = float(share_fraction) * self.total_amount
+            relation = share_data["relation"]
+            
+            # تحديد نوع الاستحقاق والتفسير
+            inheritance_type, explanation = self._generate_explanation(
+                relation, share_fraction, share_data["name"], has_children
+            )
+            
+            # تحويل النسبة إلى اسم عربي
+            arabic_fraction = fraction_to_arabic(share_fraction)
             
             results.append({
                 "name": share_data["name"],
                 "relation": share_data["relation"],
                 "percentage": f"{share_fraction.numerator}/{share_fraction.denominator}",
+                "percentage_arabic": arabic_fraction,
                 "share_decimal": float(share_fraction),
                 "amount": round(amount, 2),
+                "inheritance_type": inheritance_type,
+                "explanation": explanation,
             })
         
         return results
+    
+    def _generate_explanation(self, relation: str, share: Fraction, name: str, has_children: bool) -> tuple:
+        """توليد التفسير الشرعي لكل مستحق"""
+        arabic_share = fraction_to_arabic(share)
+        
+        if relation == "زوج":
+            if has_children:
+                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
+            else:
+                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لعدم وجود الفرع الوارث")
+        
+        elif relation == "زوجة":
+            if has_children:
+                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
+            else:
+                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لعدم وجود الفرع الوارث")
+        
+        elif relation == "أم":
+            if has_children:
+                return ("فرض", f"والدته {name} وتستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
+            else:
+                return ("فرض", f"والدته {name} وتستحق {arabic_share} تركته فرضًا لعدم وجود الفرع الوارث")
+        
+        elif relation == "أب":
+            if has_children:
+                return ("فرض", f"والده {name} ويستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
+            else:
+                # الأب يأخذ الباقي تعصيبًا
+                return ("تعصيب", f"والده {name} ويستحق الباقي تعصيبًا لعدم وجود الفرع الوارث")
+        
+        elif relation == "ابن":
+            return ("تعصيب", f"ابنه {name} ويستحق نصيبه من الباقي تعصيبًا للذكر مثل حظ الأنثيين")
+        
+        elif relation == "ابنة":
+            # التحقق من عدد البنات
+            daughters_count = sum(1 for s in self.beneficiaries if s.get("relation") == "ابنة")
+            if daughters_count == 1 and not any(s.get("relation") == "ابن" for s in self.beneficiaries):
+                # بنت واحدة بدون إخوة ذكور
+                if share == Fraction(1, 2):
+                    return ("فرض", f"ابنته {name} وتستحق {arabic_share} تركته فرضًا لانفرادها")
+                else:
+                    return ("رد", f"ابنته {name} وتستحق نصيبها فرضًا والباقي ردًا")
+            elif daughters_count >= 2 and not any(s.get("relation") == "ابن" for s in self.beneficiaries):
+                # بنتان أو أكثر بدون إخوة ذكور
+                if arabic_share == "ثلثان":
+                    return ("فرض", f"ابنته {name} وتستحق نصيبها من {arabic_share} التركة فرضًا")
+                else:
+                    return ("فرض + رد", f"ابنته {name} وتستحق نصيبها من الفرض والباقي ردًا")
+            else:
+                # بنات مع أبناء
+                return ("تعصيب", f"ابنته {name} وتستحق نصيبها من الباقي تعصيبًا للذكر مثل حظ الأنثيين")
+        
+        return ("", f"{name}")
+    
+    def generate_summary_explanation(self) -> str:
+        """توليد ملخص نصي كامل للحالة"""
+        if not self.results:
+            return ""
+        
+        lines = []
+        
+        # تجميع حسب نوع الاستحقاق
+        froud = [r for r in self.results if r.get("inheritance_type") == "فرض"]
+        tasseeb = [r for r in self.results if r.get("inheritance_type") == "تعصيب"]
+        rad = [r for r in self.results if "رد" in r.get("inheritance_type", "")]
+        
+        # الفروض
+        if froud:
+            lines.append("**الفروض:**")
+            for ben in froud:
+                lines.append(f"• {ben['explanation']}")
+        
+        # التعصيب
+        if tasseeb:
+            lines.append("\n**التعصيب:**")
+            sons = [r for r in tasseeb if r["relation"] == "ابن"]
+            daughters = [r for r in tasseeb if r["relation"] == "ابنة"]
+            fathers = [r for r in tasseeb if r["relation"] == "أب"]
+            
+            if sons or daughters:
+                names = []
+                if sons:
+                    names.extend([s["name"] for s in sons])
+                if daughters:
+                    names.extend([d["name"] for d in daughters])
+                
+                names_str = " و".join(names)
+                lines.append(f"• أولاده {names_str} يستحقون الباقي تعصيبًا للذكر مثل حظ الأنثيين")
+            
+            if fathers:
+                for f in fathers:
+                    lines.append(f"• {f['explanation']}")
+        
+        # الرد
+        if rad:
+            lines.append("\n**الرد:**")
+            lines.append("• الباقي بعد الفروض يُرد على أصحاب الفروض بحسب أنصبتهم الشرعية")
+        
+        return "\n".join(lines)
     
     def get_total_distributed(self) -> float:
         """الحصول على إجمالي المبالغ الموزعة"""
@@ -218,13 +350,15 @@ def calculate_inheritance(total_amount: float, beneficiaries: List[Dict[str, Any
         beneficiaries: قائمة المستحقين
     
     Returns:
-        dict: النتائج مع التحقق
+        dict: النتائج مع التحقق والتفسير
     """
     calculator = InheritanceCalculator(total_amount, beneficiaries)
     results = calculator.calculate()
     validation = calculator.validate()
+    summary = calculator.generate_summary_explanation()
     
     return {
         "results": results,
         "validation": validation,
+        "summary_explanation": summary,
     }

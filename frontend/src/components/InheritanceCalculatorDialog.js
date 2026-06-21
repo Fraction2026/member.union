@@ -22,6 +22,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
   const [beneficiaries, setBeneficiaries] = useState([{ name: "", relation: "" }]);
   const [results, setResults] = useState([]);
   const [validation, setValidation] = useState(null);
+  const [summaryExplanation, setSummaryExplanation] = useState("");
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,6 +48,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
         // توجد بيانات محفوظة مسبقاً
         setBeneficiaries(data.beneficiaries.map(b => ({ name: b.name, relation: b.relation })));
         setResults(data.beneficiaries);
+        setSummaryExplanation(data.summary_explanation || "");
         setValidation({
           is_valid: true,
           total_amount: data.total_amount,
@@ -110,6 +112,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
 
       setResults(data.results || []);
       setValidation(data.validation || null);
+      setSummaryExplanation(data.summary_explanation || "");
       
       if (data.validation && data.validation.is_valid) {
         toast.success("تم حساب التوزيع بنجاح");
@@ -135,6 +138,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
         aid_id: aid.id,
         total_amount: totalAmount,
         beneficiaries: results,
+        summary_explanation: summaryExplanation,
       });
 
       toast.success("تم حفظ بيانات المستحقين بنجاح");
@@ -266,7 +270,9 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                         <th className="border border-slate-300 px-3 py-2 text-right">#</th>
                         <th className="border border-slate-300 px-3 py-2 text-right">الاسم</th>
                         <th className="border border-slate-300 px-3 py-2 text-center">درجة القرابة</th>
-                        <th className="border border-slate-300 px-3 py-2 text-center">النسبة</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center">النسبة الشرعية</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center">النسبة الرقمية</th>
+                        <th className="border border-slate-300 px-3 py-2 text-center">نوع الاستحقاق</th>
                         <th className="border border-slate-300 px-3 py-2 text-center">المبلغ (ج.م)</th>
                       </tr>
                     </thead>
@@ -277,7 +283,20 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                           <td className="border border-slate-300 px-3 py-2 font-medium">{result.name}</td>
                           <td className="border border-slate-300 px-3 py-2 text-center">{result.relation}</td>
                           <td className="border border-slate-300 px-3 py-2 text-center font-bold text-purple-700">
+                            {result.percentage_arabic || result.percentage}
+                          </td>
+                          <td className="border border-slate-300 px-3 py-2 text-center text-sm text-slate-600">
                             {result.percentage}
+                          </td>
+                          <td className="border border-slate-300 px-3 py-2 text-center">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                              result.inheritance_type === "فرض" ? "bg-blue-100 text-blue-800" :
+                              result.inheritance_type === "تعصيب" ? "bg-green-100 text-green-800" :
+                              result.inheritance_type?.includes("رد") ? "bg-amber-100 text-amber-800" :
+                              "bg-slate-100 text-slate-800"
+                            }`}>
+                              {result.inheritance_type || "-"}
+                            </span>
                           </td>
                           <td className="border border-slate-300 px-3 py-2 text-center font-bold text-emerald-700">
                             {result.amount.toFixed(2)}
@@ -287,7 +306,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                     </tbody>
                     <tfoot>
                       <tr className="bg-emerald-50 font-bold">
-                        <td colSpan={4} className="border border-slate-300 px-3 py-2 text-right">
+                        <td colSpan={6} className="border border-slate-300 px-3 py-2 text-right">
                           الإجمالي الموزع:
                         </td>
                         <td className="border border-slate-300 px-3 py-2 text-center text-emerald-700">
@@ -310,6 +329,32 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                     </p>
                   </div>
                 )}
+
+                {/* التفسير الشرعي */}
+                {summaryExplanation && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="text-base font-bold text-blue-900 mb-3 flex items-center gap-2">
+                      📜 التفسير الشرعي للتوزيع
+                    </h4>
+                    <div className="text-sm text-blue-800 leading-relaxed whitespace-pre-line">
+                      {summaryExplanation}
+                    </div>
+                  </div>
+                )}
+
+                {/* تفاصيل كل مستحق */}
+                <div className="mt-4">
+                  <h4 className="text-base font-bold text-slate-700 mb-3">تفاصيل كل مستحق:</h4>
+                  <div className="space-y-2">
+                    {results.map((result, idx) => (
+                      result.explanation && (
+                        <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded text-sm text-slate-700">
+                          <span className="font-bold text-purple-700">{idx + 1}.</span> {result.explanation}
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

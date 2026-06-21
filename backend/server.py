@@ -609,9 +609,12 @@ class AidBeneficiary(BaseModel):
     """مستحق للإعانة"""
     model_config = ConfigDict(extra="ignore")
     name: str
-    relation: str  # زوج، زوجة، أب، أم، ابن، بنت
-    percentage: str = ""  # النسبة (مثل: 1/2، 1/4)
+    relation: str  # زوج، زوجة، أب، أم، ابن، ابنة
+    percentage: str = ""  # النسبة الرقمية (مثل: 1/2، 1/4)
+    percentage_arabic: str = ""  # النسبة العربية (مثل: نصف، ربع)
     amount: float = 0.0  # المبلغ المستحق
+    inheritance_type: str = ""  # نوع الاستحقاق: فرض، تعصيب، رد
+    explanation: str = ""  # التفسير الشرعي
 
 
 class AidBeneficiariesData(BaseModel):
@@ -620,6 +623,7 @@ class AidBeneficiariesData(BaseModel):
     aid_id: str
     total_amount: float
     beneficiaries: List[AidBeneficiary]
+    summary_explanation: str = ""  # الملخص النصي الكامل
 
 
 async def seed_defaults() -> None:
@@ -4496,6 +4500,7 @@ async def save_aid_beneficiaries(
         "member_id": aid.get("member_id"),
         "total_amount": payload.total_amount,
         "beneficiaries": [b.model_dump() for b in payload.beneficiaries],
+        "summary_explanation": payload.summary_explanation,
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
@@ -4515,12 +4520,13 @@ async def get_aid_beneficiaries(aid_id: str, user: Dict[str, Any] = Depends(requ
     beneficiaries_doc = await db.aid_beneficiaries.find_one({"aid_id": aid_id}, {"_id": 0})
     
     if not beneficiaries_doc:
-        return {"found": False, "beneficiaries": []}
+        return {"found": False, "beneficiaries": [], "summary_explanation": ""}
     
     return {
         "found": True,
         "total_amount": beneficiaries_doc.get("total_amount", 0),
         "beneficiaries": beneficiaries_doc.get("beneficiaries", []),
+        "summary_explanation": beneficiaries_doc.get("summary_explanation", ""),
     }
 
 
