@@ -1,0 +1,8 @@
+[
+  "backend/tests/test_inheritance_calculator.py::TestCalculateBeneficiariesAPI::test_endpoint_invalid_total",
+  "backend/tests/test_inheritance_calculator.py::TestCalculateBeneficiariesAPI::test_endpoint_returns_new_fields",
+  "backend/tests/test_inheritance_calculator.py::TestCalculateBeneficiariesAPI::test_endpoint_tasseeb_case",
+  "backend/tests/test_inheritance_calculator.py::TestInheritanceCalculatorDirect::test_husband_mother_daughter_radd",
+  "backend/tests/test_inheritance_calculator.py::TestInheritanceCalculatorDirect::test_wife_plus_4_daughters_radd",
+  "backend/tests/test_inheritance_calculator.py::TestInheritanceCalculatorDirect::test_wife_son_two_daughters_tasseeb"
+]
