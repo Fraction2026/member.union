@@ -4490,6 +4490,48 @@ async def calculate_aid_beneficiaries(
     return result
 
 
+@api_router.post("/aids/{aid_id}/parse-shariah-text")
+async def parse_shariah_document(
+    aid_id: str,
+    payload: Dict[str, Any] = Body(...),
+    user: Dict[str, Any] = Depends(require_user),
+):
+    """
+    تحليل نص الإعلام الشرعي / نص المحكمة
+    استخراج الورثة والأنصبة باستخدام Parser محلي (Rule-Based)
+    """
+    from services.shariah_text_parser import parse_shariah_text, convert_parsed_to_calculator_format
+    
+    aid = await db.aids.find_one({"id": aid_id}, {"_id": 0})
+    if not aid:
+        raise HTTPException(status_code=404, detail="الإعانة غير موجودة")
+    
+    text = payload.get("text", "").strip()
+    
+    if not text:
+        raise HTTPException(status_code=400, detail="النص فارغ")
+    
+    # تحليل النص
+    parsed_result = parse_shariah_text(text)
+    
+    if not parsed_result.get("success"):
+        return {
+            "success": False,
+            "error": parsed_result.get("error", "فشل التحليل"),
+            "heirs": []
+        }
+    
+    # تحويل إلى صيغة الحاسبة
+    beneficiaries_for_calculator = convert_parsed_to_calculator_format(parsed_result)
+    
+    return {
+        "success": True,
+        "parsed_data": parsed_result,
+        "beneficiaries": beneficiaries_for_calculator,
+        "message": f"تم استخراج {len(beneficiaries_for_calculator)} مستحق من النص"
+    }
+
+
 @api_router.post("/aids/{aid_id}/save-beneficiaries")
 async def save_aid_beneficiaries(
     aid_id: str,

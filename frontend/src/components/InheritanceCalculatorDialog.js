@@ -26,6 +26,12 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
   const [calculating, setCalculating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // حالات استيراد النص الشرعي
+  const [shariahText, setShariahText] = useState("");
+  const [parsingText, setParsingText] = useState(false);
+  const [parsedData, setParsedData] = useState(null);
+  const [showImportSection, setShowImportSection] = useState(false);
 
   // جلب البيانات المحفوظة سابقاً عند فتح الـ dialog
   useEffect(() => {
@@ -126,6 +132,48 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
     }
   };
 
+  // تحليل نص الإعلام الشرعي
+  const parseShariahText = async () => {
+    if (!shariahText.trim()) {
+      toast.error("يرجى إدخال نص الإعلام الشرعي");
+      return;
+    }
+
+    setParsingText(true);
+    try {
+      const { data } = await api.post(`/aids/${aid.id}/parse-shariah-text`, {
+        text: shariahText,
+      });
+
+      if (data.success) {
+        setParsedData(data);
+        toast.success(data.message || "تم تحليل النص بنجاح");
+      } else {
+        toast.error(data.error || "فشل تحليل النص");
+        setParsedData(null);
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+      setParsedData(null);
+    } finally {
+      setParsingText(false);
+    }
+  };
+
+  // تطبيق النتائج المستخرجة على المستحقين
+  const applyParsedResults = () => {
+    if (!parsedData || !parsedData.beneficiaries) {
+      toast.error("لا توجد نتائج لتطبيقها");
+      return;
+    }
+
+    setBeneficiaries(parsedData.beneficiaries);
+    setParsedData(null);
+    setShariahText("");
+    setShowImportSection(false);
+    toast.success("تم تطبيق النتائج على قائمة المستحقين");
+  };
+
   const saveResults = async () => {
     if (results.length === 0) {
       toast.error("يرجى حساب التوزيع أولاً");
@@ -182,6 +230,80 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
           </div>
         ) : (
           <div className="space-y-6">
+            {/* قسم استيراد من الإعلام الشرعي */}
+            <div className="border-2 border-dashed border-purple-300 rounded-lg p-4 bg-purple-50/50">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-purple-900">📄 استيراد من الإعلام الشرعي / نص المحكمة</h3>
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={() => setShowImportSection(!showImportSection)}
+                >
+                  {showImportSection ? "إخفاء" : "عرض"}
+                </Button>
+              </div>
+
+              {showImportSection && (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm">الصق نص الإعلام الشرعي أو نص المحكمة هنا:</Label>
+                    <textarea
+                      value={shariahText}
+                      onChange={(e) => setShariahText(e.target.value)}
+                      placeholder="مثال: توفي المرحوم ... وانحصر إرثه الشرعي في زوجته فاطمة أحمد وبناته عائشة وخديجة ومريم..."
+                      className="w-full mt-1 p-3 border border-slate-300 rounded-md min-h-[120px] font-arabic text-sm"
+                      dir="rtl"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={parseShariahText}
+                      disabled={parsingText || !shariahText.trim()}
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      {parsingText ? (
+                        <><Loader2 className="h-4 w-4 animate-spin ml-1" /> جاري التحليل...</>
+                      ) : (
+                        <><Calculator className="h-4 w-4 ml-1" /> تحليل النص</>
+                      )}
+                    </Button>
+
+                    {parsedData && parsedData.success && (
+                      <Button 
+                        onClick={applyParsedResults}
+                        size="sm"
+                        variant="outline"
+                        className="border-green-600 text-green-700 hover:bg-green-50"
+                      >
+                        ✓ تطبيق النتائج
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* معاينة النتائج المستخرجة */}
+                  {parsedData && parsedData.success && (
+                    <div className="mt-3 p-3 bg-white border border-green-300 rounded-md">
+                      <h4 className="text-sm font-bold text-green-900 mb-2">✓ تم استخراج المستحقين:</h4>
+                      <div className="space-y-1">
+                        {parsedData.beneficiaries.map((ben, idx) => (
+                          <div key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="font-medium">{idx + 1}.</span>
+                            <span className="font-bold">{ben.name}</span>
+                            <span className="text-slate-500">({ben.relation})</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-600 mt-2">
+                        اضغط "تطبيق النتائج" لإضافتهم إلى قائمة المستحقين أدناه
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* أصل المبلغ */}
             <div>
               <Label htmlFor="total-amount">أصل مبلغ الإعانة المعتمد (ج.م)</Label>
