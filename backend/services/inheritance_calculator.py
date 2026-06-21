@@ -1,7 +1,7 @@
 """
-حاسبة توزيع الإعانات حسب قواعد الميراث الشرعي
+حاسبة توزيع الإعانات حسب قواعد الميراث الشرعي - مع دعم كامل للرد
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from fractions import Fraction
 
 
@@ -53,11 +53,11 @@ class InheritanceCalculator:
         # تصنيف المستحقين
         classified = self._classify_beneficiaries()
         
-        # حساب الحصص
-        shares = self._calculate_shares(classified)
+        # حساب الحصص مع دعم الرد
+        shares = self._calculate_shares_with_radd(classified)
         
         # تحويل الحصص إلى مبالغ
-        self.results = self._convert_to_amounts(shares)
+        self.results = self._convert_to_amounts(shares, classified)
         
         return self.results
     
@@ -89,194 +89,247 @@ class InheritanceCalculator:
         
         return classified
     
-    def _calculate_shares(self, classified: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """حساب الحصص حسب قواعد الميراث"""
+    def _calculate_shares_with_radd(self, classified: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """حساب الحصص مع دعم كامل لحالات الرد"""
         shares = []
         
-        # تحديد وجود الأبناء (ذكور أو إناث)
+        # تحديد وجود الأبناء
         has_children = len(classified["sons"]) > 0 or len(classified["daughters"]) > 0
         
         # المتبقي بعد الفروض
         remaining = Fraction(1)
         
-        # 1. الزوج/الزوجة
+        # 1. حساب الفروض أولاً
+        froud_shares = []
+        
+        # الزوج/الزوجة
         if classified["husbands"]:
-            # الزوج: 1/2 بدون أبناء، 1/4 مع أبناء
             husband_share = Fraction(1, 4) if has_children else Fraction(1, 2)
             for husband in classified["husbands"]:
-                shares.append({
-                    "name": husband["name"],
+                froud_shares.append({
+                    "beneficiary": husband,
                     "relation": "زوج",
-                    "share": husband_share,
+                    "base_share": husband_share,
+                    "base_arabic": fraction_to_arabic(husband_share),
+                    "share_type": "فرض",
+                    "radd_share": Fraction(0),
                 })
                 remaining -= husband_share
         
         if classified["wives"]:
-            # الزوجة: 1/4 بدون أبناء، 1/8 مع أبناء
             wife_share_total = Fraction(1, 8) if has_children else Fraction(1, 4)
-            # إذا كان هناك أكثر من زوجة، يُقسم نصيبهن بينهن بالتساوي
             wife_share_each = wife_share_total / len(classified["wives"])
             for wife in classified["wives"]:
-                shares.append({
-                    "name": wife["name"],
+                froud_shares.append({
+                    "beneficiary": wife,
                     "relation": "زوجة",
-                    "share": wife_share_each,
+                    "base_share": wife_share_each,
+                    "base_arabic": fraction_to_arabic(wife_share_total) if len(classified["wives"]) == 1 else f"من {fraction_to_arabic(wife_share_total)}",
+                    "share_type": "فرض",
+                    "radd_share": Fraction(0),
                 })
             remaining -= wife_share_total
         
-        # 2. الأم
+        # الأم
         if classified["mother"]:
-            # الأم: 1/3 بدون أبناء، 1/6 مع أبناء
             mother_share = Fraction(1, 6) if has_children else Fraction(1, 3)
-            shares.append({
-                "name": classified["mother"]["name"],
+            froud_shares.append({
+                "beneficiary": classified["mother"],
                 "relation": "أم",
-                "share": mother_share,
+                "base_share": mother_share,
+                "base_arabic": fraction_to_arabic(mother_share),
+                "share_type": "فرض",
+                "radd_share": Fraction(0),
             })
             remaining -= mother_share
         
-        # 3. الأب
-        if classified["father"]:
-            if has_children:
-                # الأب: 1/6 مع الأبناء
-                father_share = Fraction(1, 6)
-                shares.append({
-                    "name": classified["father"]["name"],
-                    "relation": "أب",
-                    "share": father_share,
-                })
-                remaining -= father_share
-            else:
-                # إذا لم يكن هناك أبناء، الأب يأخذ الباقي (سيُحسب لاحقاً)
-                pass
+        # الأب مع أبناء
+        if classified["father"] and has_children:
+            father_share = Fraction(1, 6)
+            froud_shares.append({
+                "beneficiary": classified["father"],
+                "relation": "أب",
+                "base_share": father_share,
+                "base_arabic": fraction_to_arabic(father_share),
+                "share_type": "فرض",
+                "radd_share": Fraction(0),
+            })
+            remaining -= father_share
         
-        # 4. الأبناء والبنات
+        # 2. حساب التعصيب أو الرد
         if has_children:
-            # توزيع الباقي: للذكر مثل حظ الأنثيين
+            # التعصيب: توزيع الباقي على الأبناء والبنات
             sons_count = len(classified["sons"])
             daughters_count = len(classified["daughters"])
-            
-            # حساب عدد الأسهم: كل ابن = سهمان، كل بنت = سهم واحد
             total_parts = (sons_count * 2) + daughters_count
             
             if total_parts > 0:
-                # حصة كل سهم
                 one_part = remaining / total_parts
                 
-                # توزيع على الأبناء
                 for son in classified["sons"]:
                     shares.append({
-                        "name": son["name"],
+                        "beneficiary": son,
                         "relation": "ابن",
-                        "share": one_part * 2,  # سهمان
+                        "base_share": one_part * 2,
+                        "base_arabic": "الباقي تعصيباً",
+                        "share_type": "تعصيب",
+                        "radd_share": Fraction(0),
                     })
                 
-                # توزيع على البنات
                 for daughter in classified["daughters"]:
                     shares.append({
-                        "name": daughter["name"],
-                        "relation": "بنت",
-                        "share": one_part,  # سهم واحد
+                        "beneficiary": daughter,
+                        "relation": "ابنة",
+                        "base_share": one_part,
+                        "base_arabic": "الباقي تعصيباً",
+                        "share_type": "تعصيب",
+                        "radd_share": Fraction(0),
                     })
                 
                 remaining = Fraction(0)
-        else:
-            # إذا لم يكن هناك أبناء والأب موجود، يأخذ الباقي
-            if classified["father"]:
-                shares.append({
-                    "name": classified["father"]["name"],
-                    "relation": "أب",
-                    "share": remaining,
+        
+        elif classified["father"] and not has_children:
+            # الأب يأخذ الباقي تعصيباً
+            shares.append({
+                "beneficiary": classified["father"],
+                "relation": "أب",
+                "base_share": remaining,
+                "base_arabic": "الباقي تعصيباً",
+                "share_type": "تعصيب",
+                "radd_share": Fraction(0),
+            })
+            remaining = Fraction(0)
+        
+        elif len(classified["daughters"]) > 0 and len(classified["sons"]) == 0:
+            # بنات فقط بدون أبناء ذكور - فرض + رد محتمل
+            daughters_count = len(classified["daughters"])
+            
+            if daughters_count == 1:
+                # بنت واحدة: نصف فرضاً
+                base_share = Fraction(1, 2)
+                froud_shares.append({
+                    "beneficiary": classified["daughters"][0],
+                    "relation": "ابنة",
+                    "base_share": base_share,
+                    "base_arabic": "نصف",
+                    "share_type": "فرض",
+                    "radd_share": Fraction(0),
                 })
-                remaining = Fraction(0)
+                remaining -= base_share
+            else:
+                # بنتان أو أكثر: ثلثان فرضاً
+                base_share_total = Fraction(2, 3)
+                base_share_each = base_share_total / daughters_count
+                
+                for daughter in classified["daughters"]:
+                    froud_shares.append({
+                        "beneficiary": daughter,
+                        "relation": "ابنة",
+                        "base_share": base_share_each,
+                        "base_arabic": "ثلثان",
+                        "share_type": "فرض",
+                        "radd_share": Fraction(0),
+                    })
+                
+                remaining -= base_share_total
+        
+        # 3. حالة الرد: إذا بقي شيء ولا يوجد عاصب
+        if remaining > 0 and len(froud_shares) > 0:
+            # الرد على أصحاب الفروض (ما عدا الزوج/الزوجة)
+            eligible_for_radd = [s for s in froud_shares if s["relation"] not in ["زوج", "زوجة"]]
+            
+            if eligible_for_radd:
+                # حساب مجموع فروضهم
+                total_froud = sum(s["base_share"] for s in eligible_for_radd)
+                
+                # توزيع الباقي بنسبة فروضهم
+                for share_data in eligible_for_radd:
+                    radd_portion = (share_data["base_share"] / total_froud) * remaining
+                    share_data["radd_share"] = radd_portion
+                    share_data["share_type"] = "فرض + رد"
+        
+        # دمج الفروض مع التعصيب
+        shares.extend(froud_shares)
         
         return shares
     
-    def _convert_to_amounts(self, shares: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _convert_to_amounts(self, shares: List[Dict[str, Any]], classified: Dict[str, Any]) -> List[Dict[str, Any]]:
         """تحويل الحصص إلى مبالغ فعلية مع التفسير"""
         results = []
         
-        # تحديد وجود الأبناء
-        has_children = any(s["relation"] in ["ابن", "ابنة"] for s in shares)
+        has_children = len(classified["sons"]) > 0 or len(classified["daughters"]) > 0
         
         for share_data in shares:
-            share_fraction = share_data["share"]
-            amount = float(share_fraction) * self.total_amount
-            relation = share_data["relation"]
+            base_share = share_data["base_share"]
+            radd_share = share_data.get("radd_share", Fraction(0))
+            final_share = base_share + radd_share
             
-            # تحديد نوع الاستحقاق والتفسير
-            inheritance_type, explanation = self._generate_explanation(
-                relation, share_fraction, share_data["name"], has_children
+            amount = float(final_share) * self.total_amount
+            relation = share_data["relation"]
+            name = share_data["beneficiary"]["name"]
+            
+            # بناء النسبة الشرعية
+            base_arabic = share_data["base_arabic"]
+            
+            if radd_share > 0:
+                # هناك رد
+                percentage_arabic = f"{base_arabic} + رد"
+            else:
+                percentage_arabic = base_arabic
+            
+            # التفسير
+            explanation = self._generate_detailed_explanation(
+                name, relation, base_arabic, share_data["share_type"], 
+                has_children, radd_share > 0
             )
             
-            # تحويل النسبة إلى اسم عربي
-            arabic_fraction = fraction_to_arabic(share_fraction)
-            
             results.append({
-                "name": share_data["name"],
-                "relation": share_data["relation"],
-                "percentage": f"{share_fraction.numerator}/{share_fraction.denominator}",
-                "percentage_arabic": arabic_fraction,
-                "share_decimal": float(share_fraction),
+                "name": name,
+                "relation": relation,
+                "base_share": f"{base_share.numerator}/{base_share.denominator}",
+                "radd_share": f"{radd_share.numerator}/{radd_share.denominator}" if radd_share > 0 else "",
+                "percentage": f"{final_share.numerator}/{final_share.denominator}",
+                "percentage_arabic": percentage_arabic,
+                "share_decimal": float(final_share),
                 "amount": round(amount, 2),
-                "inheritance_type": inheritance_type,
+                "inheritance_type": share_data["share_type"],
                 "explanation": explanation,
             })
         
         return results
     
-    def _generate_explanation(self, relation: str, share: Fraction, name: str, has_children: bool) -> tuple:
-        """توليد التفسير الشرعي لكل مستحق"""
-        arabic_share = fraction_to_arabic(share)
+    def _generate_detailed_explanation(self, name: str, relation: str, base_arabic: str, 
+                                      share_type: str, has_children: bool, has_radd: bool) -> str:
+        """توليد التفسير التفصيلي"""
         
         if relation == "زوج":
-            if has_children:
-                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
-            else:
-                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لعدم وجود الفرع الوارث")
+            return f"زوجته {name} وتستحق {base_arabic} تركته فرضًا {'لوجود' if has_children else 'لعدم وجود'} الفرع الوارث"
         
         elif relation == "زوجة":
-            if has_children:
-                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
-            else:
-                return ("فرض", f"زوجته {name} وتستحق {arabic_share} تركته فرضًا لعدم وجود الفرع الوارث")
+            return f"زوجته {name} وتستحق {base_arabic} تركته فرضًا {'لوجود' if has_children else 'لعدم وجود'} الفرع الوارث"
         
         elif relation == "أم":
-            if has_children:
-                return ("فرض", f"والدته {name} وتستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
-            else:
-                return ("فرض", f"والدته {name} وتستحق {arabic_share} تركته فرضًا لعدم وجود الفرع الوارث")
+            if has_radd:
+                return f"والدته {name} وتستحق {base_arabic} تركته فرضًا والباقي ردًا لعدم وجود عاصب"
+            return f"والدته {name} وتستحق {base_arabic} تركته فرضًا {'لوجود' if has_children else 'لعدم وجود'} الفرع الوارث"
         
         elif relation == "أب":
-            if has_children:
-                return ("فرض", f"والده {name} ويستحق {arabic_share} تركته فرضًا لوجود الفرع الوارث")
-            else:
-                # الأب يأخذ الباقي تعصيبًا
-                return ("تعصيب", f"والده {name} ويستحق الباقي تعصيبًا لعدم وجود الفرع الوارث")
+            if share_type == "تعصيب":
+                return f"والده {name} ويستحق الباقي تعصيبًا لعدم وجود الفرع الوارث"
+            return f"والده {name} ويستحق {base_arabic} تركته فرضًا لوجود الفرع الوارث"
         
         elif relation == "ابن":
-            return ("تعصيب", f"ابنه {name} ويستحق نصيبه من الباقي تعصيبًا للذكر مثل حظ الأنثيين")
+            return f"ابنه {name} ويستحق نصيبه من الباقي تعصيبًا للذكر مثل حظ الأنثيين"
         
         elif relation == "ابنة":
-            # التحقق من عدد البنات
-            daughters_count = sum(1 for s in self.beneficiaries if s.get("relation") == "ابنة")
-            if daughters_count == 1 and not any(s.get("relation") == "ابن" for s in self.beneficiaries):
-                # بنت واحدة بدون إخوة ذكور
-                if share == Fraction(1, 2):
-                    return ("فرض", f"ابنته {name} وتستحق {arabic_share} تركته فرضًا لانفرادها")
-                else:
-                    return ("رد", f"ابنته {name} وتستحق نصيبها فرضًا والباقي ردًا")
-            elif daughters_count >= 2 and not any(s.get("relation") == "ابن" for s in self.beneficiaries):
-                # بنتان أو أكثر بدون إخوة ذكور
-                if arabic_share == "ثلثان":
-                    return ("فرض", f"ابنته {name} وتستحق نصيبها من {arabic_share} التركة فرضًا")
-                else:
-                    return ("فرض + رد", f"ابنته {name} وتستحق نصيبها من الفرض والباقي ردًا")
+            if share_type == "تعصيب":
+                return f"ابنته {name} وتستحق نصيبها من الباقي تعصيبًا للذكر مثل حظ الأنثيين"
+            elif has_radd:
+                return f"ابنته {name} وتستحق نصيبها من {base_arabic} التركة فرضًا والباقي ردًا لعدم وجود عاصب"
             else:
-                # بنات مع أبناء
-                return ("تعصيب", f"ابنته {name} وتستحق نصيبها من الباقي تعصيبًا للذكر مثل حظ الأنثيين")
+                return f"ابنته {name} وتستحق نصيبها من {base_arabic} التركة فرضًا"
         
-        return ("", f"{name}")
+        return f"{name}"
     
     def generate_summary_explanation(self) -> str:
         """توليد ملخص نصي كامل للحالة"""
@@ -286,41 +339,33 @@ class InheritanceCalculator:
         lines = []
         
         # تجميع حسب نوع الاستحقاق
-        froud = [r for r in self.results if r.get("inheritance_type") == "فرض"]
+        froud_only = [r for r in self.results if r.get("inheritance_type") == "فرض"]
+        froud_radd = [r for r in self.results if r.get("inheritance_type") == "فرض + رد"]
         tasseeb = [r for r in self.results if r.get("inheritance_type") == "تعصيب"]
-        rad = [r for r in self.results if "رد" in r.get("inheritance_type", "")]
         
         # الفروض
-        if froud:
+        if froud_only:
             lines.append("**الفروض:**")
-            for ben in froud:
+            for ben in froud_only:
+                lines.append(f"• {ben['explanation']}")
+        
+        # الفروض مع الرد
+        if froud_radd:
+            if not froud_only:
+                lines.append("**الفروض:**")
+            for ben in froud_radd:
                 lines.append(f"• {ben['explanation']}")
         
         # التعصيب
         if tasseeb:
             lines.append("\n**التعصيب:**")
-            sons = [r for r in tasseeb if r["relation"] == "ابن"]
-            daughters = [r for r in tasseeb if r["relation"] == "ابنة"]
-            fathers = [r for r in tasseeb if r["relation"] == "أب"]
-            
-            if sons or daughters:
-                names = []
-                if sons:
-                    names.extend([s["name"] for s in sons])
-                if daughters:
-                    names.extend([d["name"] for d in daughters])
-                
-                names_str = " و".join(names)
-                lines.append(f"• أولاده {names_str} يستحقون الباقي تعصيبًا للذكر مثل حظ الأنثيين")
-            
-            if fathers:
-                for f in fathers:
-                    lines.append(f"• {f['explanation']}")
+            for ben in tasseeb:
+                lines.append(f"• {ben['explanation']}")
         
-        # الرد
-        if rad:
-            lines.append("\n**الرد:**")
-            lines.append("• الباقي بعد الفروض يُرد على أصحاب الفروض بحسب أنصبتهم الشرعية")
+        # ملاحظة الرد
+        if froud_radd:
+            lines.append("\n**ملاحظة:**")
+            lines.append("• الباقي بعد الفروض يُرد على أصحاب الفروض (ما عدا الزوج/الزوجة) بحسب أنصبتهم الشرعية")
         
         return "\n".join(lines)
     
@@ -334,7 +379,7 @@ class InheritanceCalculator:
         difference = abs(self.total_amount - total_distributed)
         
         return {
-            "is_valid": difference < 0.01,  # فرق أقل من قرش واحد
+            "is_valid": difference < 0.01,
             "total_amount": self.total_amount,
             "total_distributed": total_distributed,
             "difference": difference,
