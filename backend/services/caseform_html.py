@@ -147,38 +147,67 @@ def render_case_research_form_html(
     
     beneficiaries_rows = ""
     if beneficiaries:
-        # عرض المستحقين من الحاسبة مع التفاصيل الكاملة
-        for idx, ben in enumerate(beneficiaries[:8], start=1):  # حد أقصى 8 صفوف
+        # تجميع المستحقين حسب share_group_key لحساب rowspan
+        group_map = {}
+        for idx, ben in enumerate(beneficiaries[:8]):
+            key = ben.get("share_group_key", f"{idx}_unique")
+            if key not in group_map:
+                group_map[key] = []
+            group_map[key].append(idx)
+        
+        # تحديد الصف الأول في كل مجموعة
+        first_in_group = set()
+        for indices in group_map.values():
+            if indices:
+                first_in_group.add(indices[0])
+        
+        # عرض المستحقين من الحاسبة مع دمج خلايا النسبة الشرعية
+        for idx, ben in enumerate(beneficiaries[:8], start=1):
             name_ben = ben.get("name", "")
             relation = ben.get("relation", "")
             
+            # حساب rowspan لخلية النسبة الشرعية
+            key = ben.get("share_group_key", f"{idx-1}_unique")
+            rowspan = len(group_map.get(key, [idx-1]))
+            is_first_in_group = (idx-1) in first_in_group
+            
             # عرض الفرض الأصلي والنسبة الشرعية
-            base_share_arabic = ben.get("base_share_arabic", "")
-            radd_fraction = ben.get("radd_fraction", "")
+            base_share_fraction = ben.get("base_share_fraction", "")
+            share_group_text = ben.get("share_group_text", "")
             share_type = ben.get("share_type", "") or ben.get("inheritance_type", "")
             
-            # تكوين النص المعروض في عمود "النسبة الشرعية"
-            if radd_fraction:
-                percentage_display = f"{base_share_arabic} + رد"
-            else:
-                percentage_display = base_share_arabic or ben.get("percentage_arabic", "") or ben.get("percentage", "")
+            # النسبة الشرعية المدموجة
+            if not share_group_text:
+                base_share_arabic = ben.get("base_share_arabic", "")
+                radd_fraction = ben.get("radd_fraction", "")
+                share_group_text = f"{base_share_arabic} فرضًا والباقي ردًا" if radd_fraction else base_share_arabic or ben.get("percentage_arabic", "") or ben.get("percentage", "")
             
-            # عمود النسبة الرقمية
+            # النسبة النهائية
             final_share = ben.get("final_share_fraction", "") or ben.get("percentage", "")
             
             amount = ben.get("amount", 0)
             amount_fmt = f"{amount:,.2f}" if amount > 0 else ""
             
-            beneficiaries_rows += f'<tr><td>{idx}</td><td style="text-align:right; padding-right:10px; font-weight:700;">{name_ben}</td><td>{relation}</td><td style="font-weight:700; color:#0f3a73;">{percentage_display}</td><td>{final_share}</td><td>{share_type}</td><td>{amount_fmt}</td><td></td></tr>\n'
+            # بناء الصف
+            row_cells = f'<td>{idx}</td><td style="text-align:right; padding-right:10px; font-weight:700;">{name_ben}</td><td>{relation}</td><td>{base_share_fraction}</td>'
+            
+            # خلية النسبة الشرعية (مع rowspan إذا كان أول صف في المجموعة)
+            if is_first_in_group:
+                row_cells += f'<td style="font-weight:700; color:#0f3a73; vertical-align:middle;" rowspan="{rowspan}">{share_group_text}</td>'
+            
+            # باقي الخلايا
+            row_cells += f'<td>{final_share}</td><td>{share_type}</td><td>{amount_fmt}</td><td></td>'
+            
+            beneficiaries_rows += f'<tr>{row_cells}</tr>\n'
         
         # إضافة صفوف فارغة للوصول إلى 8 صفوف
         for idx in range(len(beneficiaries) + 1, 9):
-            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
     else:
         # الجدول الافتراضي (8 صفوف فارغة مع اسم المستفيد في الصف الأول إن وجد)
-        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
         for idx in range(2, 9):
-            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
     
     return f"""<!doctype html>
 <html dir=\"rtl\" lang=\"ar\">
@@ -317,13 +346,14 @@ def render_case_research_form_html(
             <thead>
               <tr>
                 <th style=\"width:5%\">م</th>
-                <th style=\"width:28%\">الاسم</th>
-                <th style=\"width:12%\">درجة القرابة</th>
-                <th style=\"width:14%\">النسبة الشرعية</th>
-                <th style=\"width:10%\">النسبة الرقمية</th>
+                <th style=\"width:26%\">الاسم</th>
+                <th style=\"width:11%\">درجة القرابة</th>
+                <th style=\"width:10%\">الفرض الأصلي</th>
+                <th style=\"width:16%\">النسبة الشرعية</th>
+                <th style=\"width:10%\">النسبة النهائية</th>
                 <th style=\"width:10%\">نوع الاستحقاق</th>
-                <th style=\"width:11%\">المبلغ</th>
-                <th>ملاحظات</th>
+                <th style=\"width:9%\">المبلغ</th>
+                <th style=\"width:3%\">ملاحظات</th>
               </tr>
             </thead>
             <tbody>

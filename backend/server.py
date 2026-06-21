@@ -617,6 +617,8 @@ class AidBeneficiary(BaseModel):
     percentage: str = ""  # النسبة الرقمية النهائية (مثل: 1/2، 1/4) - للتوافق مع الكود القديم
     percentage_arabic: str = ""  # النسبة العربية (مثل: نصف، ربع)
     share_type: str = ""  # نوع الاستحقاق: فرض، فرض + رد، تعصيب
+    share_group_text: str = ""  # النص المشترك للتجميع (مثل: ثلثان فرضًا والباقي ردًا)
+    share_group_key: str = ""  # مفتاح التجميع للمستحقين المتشابهين
     amount: float = 0.0  # المبلغ المستحق
     inheritance_type: str = ""  # نوع الاستحقاق: فرض، تعصيب، رد (للتوافق مع الكود القديم)
     explanation: str = ""  # التفسير الشرعي

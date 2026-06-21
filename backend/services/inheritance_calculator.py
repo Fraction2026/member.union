@@ -269,13 +269,22 @@ class InheritanceCalculator:
             
             # بناء النسبة الشرعية
             base_arabic = share_data["base_arabic"]
-            share_type = share_data["share_type"]
+            original_share_type = share_data["share_type"]
             
+            # تحديث نوع الاستحقاق بناءً على وجود الرد
             if radd_share > 0:
-                # هناك رد
+                # هناك رد - يجب تحديث نوع الاستحقاق
+                share_type = "فرض + رد"
                 percentage_arabic = f"{base_arabic} + رد"
+                share_group_text = f"{base_arabic} فرضًا والباقي ردًا"
             else:
+                share_type = original_share_type
                 percentage_arabic = base_arabic
+                share_group_text = base_arabic
+            
+            # مفتاح التجميع: يُستخدم لتحديد المستحقين الذين يشتركون في نفس الحكم
+            # نجمع حسب: درجة القرابة + نوع الاستحقاق + النص الشرعي
+            share_group_key = f"{relation}|{share_type}|{share_group_text}"
             
             # التفسير
             explanation = self._generate_detailed_explanation(
@@ -293,6 +302,8 @@ class InheritanceCalculator:
                 "percentage": f"{final_share.numerator}/{final_share.denominator}",  # للتوافق مع الكود القديم
                 "percentage_arabic": percentage_arabic,
                 "share_type": share_type,
+                "share_group_text": share_group_text,  # النص المشترك للتجميع
+                "share_group_key": share_group_key,  # مفتاح التجميع
                 "share_decimal": float(final_share),
                 "amount": round(amount, 2),
                 "inheritance_type": share_type,  # للتوافق مع الكود القديم

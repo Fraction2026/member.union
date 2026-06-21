@@ -279,38 +279,72 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                       </tr>
                     </thead>
                     <tbody>
-                      {results.map((result, idx) => (
-                        <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                          <td className="border border-slate-300 px-2 py-2 text-center">{idx + 1}</td>
-                          <td className="border border-slate-300 px-2 py-2 font-medium">{result.name}</td>
-                          <td className="border border-slate-300 px-2 py-2 text-center">{result.relation}</td>
-                          <td className="border border-slate-300 px-2 py-2 text-center text-slate-600">
-                            {result.base_share_fraction || result.base_share || "-"}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-2 text-center font-bold text-purple-700">
-                            {result.base_share_arabic || result.percentage_arabic || "-"}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-2 text-center text-amber-700 font-medium">
-                            {result.radd_fraction || "-"}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-2 text-center text-slate-700 font-medium">
-                            {result.final_share_fraction || result.percentage || "-"}
-                          </td>
-                          <td className="border border-slate-300 px-2 py-2 text-center">
-                            <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                              result.share_type === "فرض" || result.inheritance_type === "فرض" ? "bg-blue-100 text-blue-800" :
-                              result.share_type === "تعصيب" || result.inheritance_type === "تعصيب" ? "bg-green-100 text-green-800" :
-                              result.share_type?.includes("رد") || result.inheritance_type?.includes("رد") ? "bg-amber-100 text-amber-800" :
-                              "bg-slate-100 text-slate-800"
-                            }`}>
-                              {result.share_type || result.inheritance_type || "-"}
-                            </span>
-                          </td>
-                          <td className="border border-slate-300 px-2 py-2 text-center font-bold text-emerald-700">
-                            {result.amount.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        // تجميع النتائج حسب share_group_key لحساب rowspan
+                        const groupMap = new Map();
+                        results.forEach((result, idx) => {
+                          const key = result.share_group_key || `${idx}_unique`;
+                          if (!groupMap.has(key)) {
+                            groupMap.set(key, []);
+                          }
+                          groupMap.get(key).push(idx);
+                        });
+
+                        // تحديد الصف الأول في كل مجموعة
+                        const firstInGroup = new Set();
+                        groupMap.forEach((indices) => {
+                          if (indices.length > 0) {
+                            firstInGroup.add(indices[0]);
+                          }
+                        });
+
+                        return results.map((result, idx) => {
+                          const key = result.share_group_key || `${idx}_unique`;
+                          const groupIndices = groupMap.get(key) || [idx];
+                          const rowspan = groupIndices.length;
+                          const isFirstInGroup = firstInGroup.has(idx);
+
+                          return (
+                            <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                              <td className="border border-slate-300 px-2 py-2 text-center">{idx + 1}</td>
+                              <td className="border border-slate-300 px-2 py-2 font-medium">{result.name}</td>
+                              <td className="border border-slate-300 px-2 py-2 text-center">{result.relation}</td>
+                              <td className="border border-slate-300 px-2 py-2 text-center text-slate-600">
+                                {result.base_share_fraction || result.base_share || "-"}
+                              </td>
+                              {/* دمج خلية النسبة الشرعية للمستحقين المتشابهين */}
+                              {isFirstInGroup && (
+                                <td 
+                                  className="border border-slate-300 px-2 py-2 text-center font-bold text-purple-700" 
+                                  rowSpan={rowspan}
+                                  style={{verticalAlign: 'middle'}}
+                                >
+                                  {result.share_group_text || result.base_share_arabic || result.percentage_arabic || "-"}
+                                </td>
+                              )}
+                              <td className="border border-slate-300 px-2 py-2 text-center text-amber-700 font-medium">
+                                {result.radd_fraction || "-"}
+                              </td>
+                              <td className="border border-slate-300 px-2 py-2 text-center text-slate-700 font-medium">
+                                {result.final_share_fraction || result.percentage || "-"}
+                              </td>
+                              <td className="border border-slate-300 px-2 py-2 text-center">
+                                <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                                  result.share_type === "فرض" || result.inheritance_type === "فرض" ? "bg-blue-100 text-blue-800" :
+                                  result.share_type === "تعصيب" || result.inheritance_type === "تعصيب" ? "bg-green-100 text-green-800" :
+                                  result.share_type?.includes("رد") || result.inheritance_type?.includes("رد") ? "bg-amber-100 text-amber-800" :
+                                  "bg-slate-100 text-slate-800"
+                                }`}>
+                                  {result.share_type || result.inheritance_type || "-"}
+                                </span>
+                              </td>
+                              <td className="border border-slate-300 px-2 py-2 text-center font-bold text-emerald-700">
+                                {result.amount.toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
                     </tbody>
                     <tfoot>
                       <tr className="bg-emerald-50 font-bold">
