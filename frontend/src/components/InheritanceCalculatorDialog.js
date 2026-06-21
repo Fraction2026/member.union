@@ -14,7 +14,7 @@ const RELATION_TYPES = [
   { value: "أب", label: "أب" },
   { value: "أم", label: "أم" },
   { value: "ابن", label: "ابن" },
-  { value: "بنت", label: "بنت" },
+  { value: "ابنة", label: "ابنة" },
 ];
 
 export default function InheritanceCalculatorDialog({ open, onOpenChange, aid }) {

@@ -14,7 +14,7 @@ class InheritanceCalculator:
         "أب": "father",
         "أم": "mother",
         "ابن": "son",
-        "بنت": "daughter",
+        "ابنة": "daughter",
     }
     
     def __init__(self, total_amount: float, beneficiaries: List[Dict[str, Any]]):
@@ -66,7 +66,7 @@ class InheritanceCalculator:
                 classified["mother"] = b
             elif relation == "ابن":
                 classified["sons"].append(b)
-            elif relation == "بنت":
+            elif relation == "ابنة":
                 classified["daughters"].append(b)
         
         return classified
