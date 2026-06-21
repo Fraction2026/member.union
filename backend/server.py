@@ -38,6 +38,7 @@ from services.retirement import (
     add_years,
     compute_retirement_info,
 )
+from services.inheritance_calculator import calculate_inheritance
 
 
 ROOT_DIR = Path(__file__).parent
@@ -602,6 +603,23 @@ class AidRecord(BaseModel):
     print_dues_note: bool = True
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
+
+
+class AidBeneficiary(BaseModel):
+    """مستحق للإعانة"""
+    model_config = ConfigDict(extra="ignore")
+    name: str
+    relation: str  # زوج، زوجة، أب، أم، ابن، بنت
+    percentage: str = ""  # النسبة (مثل: 1/2، 1/4)
+    amount: float = 0.0  # المبلغ المستحق
+
+
+class AidBeneficiariesData(BaseModel):
+    """بيانات المستحقين للإعانة"""
+    model_config = ConfigDict(extra="ignore")
+    aid_id: str
+    total_amount: float
+    beneficiaries: List[AidBeneficiary]
 
 
 async def seed_defaults() -> None:
@@ -3861,7 +3879,22 @@ async def member_case_research_form(
         governorate=member.get("governorate", ""),
         union_committee=member.get("union_committee", ""),
     )
-    return HTMLResponse(render_case_research_form_html(enriched, mode=mode, dues_note=dues_note, dues_note_clean=dues_note_clean, last_paid_month=last_paid_month))
+    
+    # جلب بيانات المستحقين إذا كانت موجودة
+    beneficiaries_list = []
+    if aid:
+        beneficiaries_doc = await db.aid_beneficiaries.find_one({"aid_id": aid["id"]}, {"_id": 0})
+        if beneficiaries_doc:
+            beneficiaries_list = beneficiaries_doc.get("beneficiaries", [])
+    
+    return HTMLResponse(render_case_research_form_html(
+        enriched, 
+        mode=mode, 
+        dues_note=dues_note, 
+        dues_note_clean=dues_note_clean, 
+        last_paid_month=last_paid_month,
+        beneficiaries=beneficiaries_list
+    ))
 
 
 @api_router.get("/documents/{document_id}/download")
@@ -4417,6 +4450,77 @@ async def delete_aid(aid_id: str, user: Dict[str, Any] = Depends(require_admin))
         raise HTTPException(status_code=404, detail="الإعانة غير موجودة")
     await db.aids.delete_one({"id": aid_id})
     return {"deleted": True, "id": aid_id, "was_disbursed": aid.get("status") == AID_STATUS_DISBURSED}
+
+
+@api_router.post("/aids/{aid_id}/calculate-beneficiaries")
+async def calculate_aid_beneficiaries(
+    aid_id: str,
+    payload: Dict[str, Any] = Body(...),
+    user: Dict[str, Any] = Depends(require_user),
+):
+    """حساب توزيع الإعانة على المستحقين"""
+    aid = await db.aids.find_one({"id": aid_id}, {"_id": 0})
+    if not aid:
+        raise HTTPException(status_code=404, detail="الإعانة غير موجودة")
+    
+    total_amount = payload.get("total_amount", 0)
+    beneficiaries_input = payload.get("beneficiaries", [])
+    
+    if total_amount <= 0:
+        raise HTTPException(status_code=400, detail="أصل المبلغ يجب أن يكون أكبر من صفر")
+    
+    if not beneficiaries_input:
+        raise HTTPException(status_code=400, detail="يجب إدخال مستحق واحد على الأقل")
+    
+    # حساب التوزيع
+    result = calculate_inheritance(total_amount, beneficiaries_input)
+    
+    return result
+
+
+@api_router.post("/aids/{aid_id}/save-beneficiaries")
+async def save_aid_beneficiaries(
+    aid_id: str,
+    payload: AidBeneficiariesData = Body(...),
+    user: Dict[str, Any] = Depends(require_user),
+):
+    """حفظ بيانات المستحقين للإعانة"""
+    aid = await db.aids.find_one({"id": aid_id}, {"_id": 0})
+    if not aid:
+        raise HTTPException(status_code=404, detail="الإعانة غير موجودة")
+    
+    # حفظ في collection منفصلة
+    beneficiaries_doc = {
+        "aid_id": aid_id,
+        "member_id": aid.get("member_id"),
+        "total_amount": payload.total_amount,
+        "beneficiaries": [b.model_dump() for b in payload.beneficiaries],
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    
+    # حذف السجل القديم إن وجد
+    await db.aid_beneficiaries.delete_many({"aid_id": aid_id})
+    
+    # إدراج السجل الجديد
+    await db.aid_beneficiaries.insert_one(beneficiaries_doc)
+    
+    return {"saved": True, "aid_id": aid_id, "beneficiaries_count": len(payload.beneficiaries)}
+
+
+@api_router.get("/aids/{aid_id}/beneficiaries")
+async def get_aid_beneficiaries(aid_id: str, user: Dict[str, Any] = Depends(require_user)):
+    """جلب بيانات المستحقين للإعانة"""
+    beneficiaries_doc = await db.aid_beneficiaries.find_one({"aid_id": aid_id}, {"_id": 0})
+    
+    if not beneficiaries_doc:
+        return {"found": False, "beneficiaries": []}
+    
+    return {
+        "found": True,
+        "total_amount": beneficiaries_doc.get("total_amount", 0),
+        "beneficiaries": beneficiaries_doc.get("beneficiaries", []),
+    }
 
 
 @api_router.post("/aids/{aid_id}/recalculate")

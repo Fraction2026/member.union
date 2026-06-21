@@ -12,6 +12,7 @@ def render_case_research_form_html(
     dues_note_clean: bool = False,
     date_formatter=None,
     last_paid_month: str = "",
+    beneficiaries: list = None,
 ) -> str:
     """Render the A4 Case Research Form HTML.
 
@@ -24,6 +25,7 @@ def render_case_research_form_html(
             dates. If None, raw values are emitted.
         last_paid_month: YYYY-MM string with the last collected subscription month
             for the member's committee. Rendered as MM / YYYY when present.
+        beneficiaries: list of beneficiary dicts [{"name": "...", "relation": "...", "percentage": "...", "amount": ...}]
     """
     fmt = date_formatter or (lambda v: v or "")
     # Format last_paid_month from YYYY-MM into MM / YYYY for display
@@ -138,6 +140,31 @@ def render_case_research_form_html(
             '</div>'
         )
     title = f"استمارة بحث حالة - {name or membership_number or 'عضو'}"
+    
+    # إعداد صفوف جدول المستحقين
+    if beneficiaries is None:
+        beneficiaries = []
+    
+    beneficiaries_rows = ""
+    if beneficiaries:
+        # عرض المستحقين من الحاسبة
+        for idx, ben in enumerate(beneficiaries[:8], start=1):  # حد أقصى 8 صفوف
+            name_ben = ben.get("name", "")
+            relation = ben.get("relation", "")
+            percentage = ben.get("percentage", "")
+            amount = ben.get("amount", 0)
+            amount_fmt = f"{amount:,.2f}" if amount > 0 else ""
+            beneficiaries_rows += f'<tr><td>{idx}</td><td style="text-align:right; padding-right:10px; font-weight:700;">{name_ben}</td><td>{relation}</td><td>{percentage}</td><td>{amount_fmt}</td><td></td></tr>\n'
+        
+        # إضافة صفوف فارغة للوصول إلى 8 صفوف
+        for idx in range(len(beneficiaries) + 1, 9):
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+    else:
+        # الجدول الافتراضي (8 صفوف فارغة مع اسم المستفيد في الصف الأول إن وجد)
+        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td></tr>\n'
+        for idx in range(2, 9):
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+    
     return f"""<!doctype html>
 <html dir=\"rtl\" lang=\"ar\">
 <head>
@@ -283,14 +310,7 @@ def render_case_research_form_html(
               </tr>
             </thead>
             <tbody>
-              <tr><td>1</td><td style=\"text-align:right; padding-right:10px; font-weight:700;\">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>4</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>5</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>6</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>7</td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr><td>8</td><td></td><td></td><td></td><td></td><td></td></tr>
+              {beneficiaries_rows}
             </tbody>
           </table>
         </div>
