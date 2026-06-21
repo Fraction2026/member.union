@@ -67,7 +67,7 @@ export default function AidPendingPage() {
     // فتح استمارة بحث الحالة في نافذة جديدة
     const apiUrl = process.env.REACT_APP_BACKEND_URL || "";
     const token = localStorage.getItem("archive_token");
-    const url = `${apiUrl}/api/members/${aid.member_id}/case-research-form?mode=view`;
+    const url = `${apiUrl}/api/members/${aid.member_id}/case-form?mode=view`;
     
     // فتح في نافذة جديدة
     const newWindow = window.open(url, "_blank", "width=1000,height=800");
