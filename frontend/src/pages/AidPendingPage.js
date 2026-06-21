@@ -66,10 +66,87 @@ export default function AidPendingPage() {
   const openView = (aid) => {
     // فتح استمارة بحث الحالة في نافذة جديدة
     const apiUrl = process.env.REACT_APP_BACKEND_URL || "";
+    const token = localStorage.getItem("archive_token");
     const url = `${apiUrl}/api/members/${aid.member_id}/case-form?mode=view`;
     
-    // فتح في نافذة جديدة مباشرة
-    window.open(url, "_blank", "width=1200,height=900");
+    // فتح نافذة جديدة
+    const newWindow = window.open("", "_blank", "width=1200,height=900");
+    
+    if (newWindow) {
+      // كتابة صفحة تحميل أولية
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html dir="rtl">
+          <head>
+            <meta charset="UTF-8">
+            <title>استمارة بحث الحالة - ${aid.member_name}</title>
+            <style>
+              body { margin: 0; padding: 0; overflow: auto; }
+              .loader { 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                height: 100vh; 
+                font-family: Arial, sans-serif;
+                color: #64748b;
+                font-size: 18px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="loader">جاري تحميل الاستمارة...</div>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+      
+      // جلب الاستمارة
+      fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('فشل تحميل الاستمارة');
+        return res.text();
+      })
+      .then(html => {
+        // استبدال محتوى الصفحة بالاستمارة
+        newWindow.document.open();
+        newWindow.document.write(html);
+        newWindow.document.close();
+      })
+      .catch(err => {
+        newWindow.document.open();
+        newWindow.document.write(`
+          <!DOCTYPE html>
+          <html dir="rtl">
+            <head>
+              <meta charset="UTF-8">
+              <title>خطأ</title>
+              <style>
+                body { 
+                  margin: 0; 
+                  padding: 40px; 
+                  font-family: Arial, sans-serif;
+                  text-align: center;
+                }
+                .error { 
+                  color: #ef4444; 
+                  font-size: 18px;
+                  margin-top: 20px;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="error">⚠️ حدث خطأ أثناء تحميل الاستمارة</div>
+              <p style="color: #64748b; margin-top: 10px;">${err.message}</p>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      });
+    }
   };
 
   const setBeneficiary = (idx, val) => {
