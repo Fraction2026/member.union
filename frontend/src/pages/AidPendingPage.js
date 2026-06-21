@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Clock, HandCoins, Loader2, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Wallet } from "lucide-react";
+import { Clock, Eye, HandCoins, Loader2, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Wallet } from "lucide-react";
 import AppShell from "../components/AppShell";
 import GatewayHero from "../components/GatewayHero";
 import { Button } from "../components/ui/button";
@@ -28,6 +28,7 @@ export default function AidPendingPage() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [active, setActive] = useState(null);
   const [form, setForm] = useState(emptyDisburse);
   const [busy, setBusy] = useState(false);
@@ -61,6 +62,11 @@ export default function AidPendingPage() {
     setForm({ ...emptyDisburse, beneficiaries: aid.member_beneficiary_name ? [aid.member_beneficiary_name] : [""] });
     setError("");
     setOpen(true);
+  };
+
+  const openView = (aid) => {
+    setActive(aid);
+    setViewOpen(true);
   };
 
   const setBeneficiary = (idx, val) => {
@@ -272,6 +278,16 @@ export default function AidPendingPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-slate-600 hover:bg-slate-100 hover:text-slate-900" 
+                            onClick={() => openView(it)} 
+                            data-testid={`aid-view-btn-${it.id}`}
+                            title="عرض التفاصيل"
+                          >
+                            <Eye className="h-4 w-4" /> عرض
+                          </Button>
                           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => openDisburse(it)} data-testid={`aid-disburse-btn-${it.id}`}>
                             <Wallet className="h-4 w-4" /> اعتماد الصرف
                           </Button>
@@ -365,6 +381,139 @@ export default function AidPendingPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* نافذة عرض التفاصيل */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">تفاصيل الإعانة</DialogTitle>
+            <DialogDescription>عرض كافة بيانات الإعانة والعضو</DialogDescription>
+          </DialogHeader>
+
+          {active && (
+            <div className="space-y-6">
+              {/* معلومات الإعانة */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">معلومات الإعانة</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-slate-500">نوع الإعانة</Label>
+                    <p className="text-sm font-medium mt-1">
+                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-bold ${aidTypeBadge(active.aid_type)}`}>
+                        {active.aid_type}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">تاريخ الحالة</Label>
+                    <p className="text-sm font-medium mt-1">{active.member_status_date || "-"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* بيانات العضو */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">بيانات العضو</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-slate-500">اسم العضو</Label>
+                    <p className="text-sm font-medium mt-1">{active.member_name || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">الرقم القومي</Label>
+                    <p className="text-sm font-medium mt-1 tabular-nums">{active.member_national_id || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">رقم العضوية</Label>
+                    <p className="text-sm font-medium mt-1 tabular-nums">{active.member_membership_number || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">تاريخ الميلاد</Label>
+                    <p className="text-sm font-medium mt-1 tabular-nums">{active.member_birth_date || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">تاريخ الاشتراك</Label>
+                    <p className="text-sm font-medium mt-1 tabular-nums">{active.member_subscription_date || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">المستفيد الأساسي</Label>
+                    <p className="text-sm font-medium mt-1">{active.member_beneficiary_name || "-"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* الموقع */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">الموقع</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-slate-500">المحافظة</Label>
+                    <p className="text-sm font-medium mt-1">{active.member_governorate || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-slate-500">اللجنة النقابية</Label>
+                    <p className="text-sm font-medium mt-1">{active.member_union_committee || "-"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* معلومات الاتصال */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">معلومات الاتصال</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-slate-500">الهاتف</Label>
+                    <p className="text-sm font-medium mt-1 tabular-nums">{active.member_phone || "-"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs text-slate-500">العنوان</Label>
+                    <p className="text-sm font-medium mt-1">{active.member_address || "-"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* مستحقات اللجنة */}
+              {active.committee_dues && (
+                <div>
+                  <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">مستحقات اللجنة</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-xs text-slate-500">المبلغ المستحق</Label>
+                      <p className="text-sm font-bold mt-1 text-rose-700 tabular-nums">
+                        {fmtNum(active.committee_dues.owed_amount || 0)} ج.م
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-500">من شهر</Label>
+                      <p className="text-sm font-medium mt-1 tabular-nums">{active.committee_dues.from_month || "-"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-500">إلى شهر</Label>
+                      <p className="text-sm font-medium mt-1 tabular-nums">{active.committee_dues.to_month || "-"}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Label className="text-xs text-slate-500">إظهار في الاستمارة</Label>
+                    <p className="text-sm font-medium mt-1">
+                      {active.print_dues_note ? (
+                        <span className="text-emerald-700 font-bold">نعم</span>
+                      ) : (
+                        <span className="text-slate-500">لا</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setViewOpen(false)}>
+              إغلاق
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppShell>
