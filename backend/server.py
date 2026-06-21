@@ -3225,6 +3225,71 @@ async def membership_reports(department_id: Optional[str] = None, user: Dict[str
     }
 
 
+@api_router.get("/reports/pension")
+async def pension_report(
+    department_id: Optional[str] = None,
+    governorate: Optional[str] = None,
+    union_committee: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    user: Dict[str, Any] = Depends(require_user),
+):
+    """تقرير المعاش - الأعضاء الذين حالتهم 'معاش' مع الفلترة والبحث"""
+    page = max(page, 1)
+    page_size = max(min(page_size, 100), 1)
+    
+    query: Dict[str, Any] = {"status": "معاش"}
+    
+    if department_id:
+        query["department_id"] = department_id
+    if governorate:
+        query["governorate"] = governorate
+    if union_committee:
+        query["union_committee"] = union_committee
+    
+    # فلترة حسب تاريخ الحالة (status_date)
+    if from_date or to_date:
+        date_query: Dict[str, Any] = {}
+        if from_date:
+            date_query["$gte"] = from_date
+        if to_date:
+            date_query["$lte"] = to_date
+        if date_query:
+            query["status_date"] = date_query
+    
+    # البحث
+    if search and search.strip():
+        search_normalized = search.strip()
+        # تحويل الأرقام العربية/الهندية إلى إنجليزية
+        arabic_to_english = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+        search_en = search_normalized.translate(arabic_to_english)
+        
+        query["$or"] = [
+            {"name": {"$regex": search_normalized, "$options": "i"}},
+            {"national_id": {"$regex": search_en, "$options": "i"}},
+            {"membership_number": {"$regex": search_en, "$options": "i"}},
+            {"union_committee": {"$regex": search_normalized, "$options": "i"}},
+        ]
+    
+    # إجمالي العدد
+    total_count = await db.members.count_documents(query)
+    
+    # جلب الصفحة المطلوبة
+    skip = (page - 1) * page_size
+    members = await db.members.find(query, {"_id": 0}).sort("status_date", -1).skip(skip).limit(page_size).to_list(page_size)
+    
+    return {
+        "members": members,
+        "total_count": total_count,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total_count + page_size - 1) // page_size,
+    }
+
+
 @api_router.get("/members/{member_id}", response_model=Member)
 async def get_member(member_id: str, user: Dict[str, Any] = Depends(require_user)):
     member = await db.members.find_one({"id": member_id}, {"_id": 0})

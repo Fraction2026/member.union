@@ -21,6 +21,7 @@ import CommitteesDuesPage from "./pages/CommitteesDuesPage";
 import DisclosureReportsPage from "./pages/DisclosureReportsPage";
 import DisclosurePrintPage from "./pages/DisclosurePrintPage";
 import CategoryArchivePage from "./pages/CategoryArchivePage";
+import PensionPage from "./pages/PensionPage";
 import CreditsPage from "./pages/CreditsPage";
 import ManualPage from "./pages/ManualPage";
 import OfflineBanner from "./components/OfflineBanner";
@@ -122,6 +123,7 @@ function App() {
           <Route path="/project/:id/financial/letters" element={<ProtectedRoute><LettersGatewayPage /></ProtectedRoute>} />
           <Route path="/project/:id/financial/letters/generate" element={<ProtectedRoute><LettersGeneratePage /></ProtectedRoute>} />
           <Route path="/project/:id/financial/letters/:subcategory" element={<ProtectedRoute><CategoryArchivePage /></ProtectedRoute>} />
+          <Route path="/project/:id/financial/pension" element={<ProtectedRoute><PensionPage /></ProtectedRoute>} />
           <Route path="/project/:id/financial/:category" element={<ProtectedRoute><CategoryArchivePage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/departments" replace />} />
         </Routes>
