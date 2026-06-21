@@ -273,8 +273,6 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                         <th className="border border-slate-300 px-2 py-2 text-center">الفرض الأصلي</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">النسبة الشرعية</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">الرد</th>
-                        <th className="border border-slate-300 px-2 py-2 text-center">النسبة النهائية</th>
-                        <th className="border border-slate-300 px-2 py-2 text-center">نوع الاستحقاق</th>
                         <th className="border border-slate-300 px-2 py-2 text-center">المبلغ (ج.م)</th>
                       </tr>
                     </thead>
@@ -325,19 +323,6 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                               <td className="border border-slate-300 px-2 py-2 text-center text-amber-700 font-medium">
                                 {result.radd_fraction || "-"}
                               </td>
-                              <td className="border border-slate-300 px-2 py-2 text-center text-slate-700 font-medium">
-                                {result.final_share_fraction || result.percentage || "-"}
-                              </td>
-                              <td className="border border-slate-300 px-2 py-2 text-center">
-                                <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
-                                  result.share_type === "فرض" || result.inheritance_type === "فرض" ? "bg-blue-100 text-blue-800" :
-                                  result.share_type === "تعصيب" || result.inheritance_type === "تعصيب" ? "bg-green-100 text-green-800" :
-                                  result.share_type?.includes("رد") || result.inheritance_type?.includes("رد") ? "bg-amber-100 text-amber-800" :
-                                  "bg-slate-100 text-slate-800"
-                                }`}>
-                                  {result.share_type || result.inheritance_type || "-"}
-                                </span>
-                              </td>
                               <td className="border border-slate-300 px-2 py-2 text-center font-bold text-emerald-700">
                                 {result.amount.toFixed(2)}
                               </td>
@@ -348,7 +333,7 @@ export default function InheritanceCalculatorDialog({ open, onOpenChange, aid })
                     </tbody>
                     <tfoot>
                       <tr className="bg-emerald-50 font-bold">
-                        <td colSpan={8} className="border border-slate-300 px-2 py-2 text-right">
+                        <td colSpan={6} className="border border-slate-300 px-2 py-2 text-right">
                           الإجمالي الموزع:
                         </td>
                         <td className="border border-slate-300 px-2 py-2 text-center text-emerald-700">

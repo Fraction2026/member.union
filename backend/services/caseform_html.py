@@ -180,10 +180,7 @@ def render_case_research_form_html(
             if not share_group_text:
                 base_share_arabic = ben.get("base_share_arabic", "")
                 radd_fraction = ben.get("radd_fraction", "")
-                share_group_text = f"{base_share_arabic} فرضًا والباقي ردًا" if radd_fraction else base_share_arabic or ben.get("percentage_arabic", "") or ben.get("percentage", "")
-            
-            # النسبة النهائية
-            final_share = ben.get("final_share_fraction", "") or ben.get("percentage", "")
+                share_group_text = f"{base_share_arabic} والباقي ردًا" if radd_fraction else base_share_arabic or ben.get("percentage_arabic", "") or ben.get("percentage", "")
             
             amount = ben.get("amount", 0)
             amount_fmt = f"{amount:,.2f}" if amount > 0 else ""
@@ -195,19 +192,19 @@ def render_case_research_form_html(
             if is_first_in_group:
                 row_cells += f'<td style="font-weight:700; color:#0f3a73; vertical-align:middle;" rowspan="{rowspan}">{share_group_text}</td>'
             
-            # باقي الخلايا
-            row_cells += f'<td>{final_share}</td><td>{share_type}</td><td>{amount_fmt}</td><td></td>'
+            # باقي الخلايا (بدون النسبة النهائية ونوع الاستحقاق)
+            row_cells += f'<td>{amount_fmt}</td><td></td>'
             
             beneficiaries_rows += f'<tr>{row_cells}</tr>\n'
         
         # إضافة صفوف فارغة للوصول إلى 8 صفوف
         for idx in range(len(beneficiaries) + 1, 9):
-            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
     else:
         # الجدول الافتراضي (8 صفوف فارغة مع اسم المستفيد في الصف الأول إن وجد)
-        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+        beneficiaries_rows = f'<tr><td>1</td><td style="text-align:right; padding-right:10px; font-weight:700;">{beneficiary_cell_text}</td><td></td><td></td><td></td><td></td><td></td></tr>\n'
         for idx in range(2, 9):
-            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
+            beneficiaries_rows += f'<tr><td>{idx}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n'
     
     return f"""<!doctype html>
 <html dir=\"rtl\" lang=\"ar\">
@@ -345,15 +342,13 @@ def render_case_research_form_html(
           <table class=\"beneficiaries\">
             <thead>
               <tr>
-                <th style=\"width:5%\">م</th>
-                <th style=\"width:26%\">الاسم</th>
-                <th style=\"width:11%\">درجة القرابة</th>
-                <th style=\"width:10%\">الفرض الأصلي</th>
-                <th style=\"width:16%\">النسبة الشرعية</th>
-                <th style=\"width:10%\">النسبة النهائية</th>
-                <th style=\"width:10%\">نوع الاستحقاق</th>
-                <th style=\"width:9%\">المبلغ</th>
-                <th style=\"width:3%\">ملاحظات</th>
+                <th style=\"width:6%\">م</th>
+                <th style=\"width:32%\">الاسم</th>
+                <th style=\"width:14%\">درجة القرابة</th>
+                <th style=\"width:12%\">الفرض الأصلي</th>
+                <th style=\"width:20%\">النسبة الشرعية</th>
+                <th style=\"width:10%\">المبلغ</th>
+                <th style=\"width:6%\">ملاحظات</th>
               </tr>
             </thead>
             <tbody>

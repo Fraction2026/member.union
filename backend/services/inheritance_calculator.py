@@ -276,7 +276,7 @@ class InheritanceCalculator:
                 # هناك رد - يجب تحديث نوع الاستحقاق
                 share_type = "فرض + رد"
                 percentage_arabic = f"{base_arabic} + رد"
-                share_group_text = f"{base_arabic} فرضًا والباقي ردًا"
+                share_group_text = f"{base_arabic} والباقي ردًا"  # إزالة كلمة "فرضًا"
             else:
                 share_type = original_share_type
                 percentage_arabic = base_arabic
